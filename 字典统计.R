@@ -17,7 +17,7 @@ find_dict_word <- function(data, colname, dict = dict_vec, dupli_bool = TRUE){
   stat$keyword = as.character(stat$keyword)
   colnames(data)[colnames(data)==colname] = "target_word"
   if(dupli_bool==TRUE){
-    stat[,2] = apply(stat,1,function(x){x[2]=data %>% filter(grepl(x[1], target_word)) %>% nrow()})
+    stat[,2] = apply(stat,1,function(x){x[2]=data %>% dplyr::filter(grepl(x[1], target_word)) %>% nrow()})
   }else{
     all_text = paste0(data$target_word, collapse = ",")
     stat[,2] = apply(stat,1,function(x){length(stringr::str_match_all(all_text, x[1])[[1]])})
