@@ -43,7 +43,7 @@ emotion_sentence_stat <- function(content, emotion_dict){
   cc = worker()
   seg_list <- cc[content]
   seg_list <- seg_list[seg_list %in% emotion_dict$word]
-  a <- mclapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dict)}, mc.cores = 16)
+  a <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dict)})
   a <- do.call(rbind, a)
   result <- apply(a, 2, sum)
   return(result)
