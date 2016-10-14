@@ -1,6 +1,6 @@
 library(jiebaR)
 library(parallel)
-content_splitted <- mclapply(1:nrow(wom_bora_3gen), function(i) split_content(wom_bora_3gen$content[i], comments), mc.cores = 16)
+# content_splitted <- mclapply(1:nrow(wom_bora_3gen), function(i) split_content(wom_bora_3gen$content[i], comments), mc.cores = 16)
 word_emo_classify <- function(keyword, emotion_dict){
   emotions_temp = emotion_dict %>% filter(word==keyword)
   emotion_table <- data.frame(t(rep(0,21)))
