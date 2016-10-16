@@ -1,10 +1,14 @@
 library(jiebaR)
 library(parallel)
+library(openxlsx)
+library(dplyr)
+library(ggplot2)
 
 # 词汇情感分析------------------------------------
 
 emotion_word_classify <- function(keyword, emotion_dict){
-  emotions_temp <- emotion_dict %>% filter(word==keyword)
+  emotions_temp <- emotion_dict %>% dplyr::filter(word==keyword)
+  emotions_temp <- emotions_temp[1,]
   emotion_table <- data.frame(t(rep(0,21)))
   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH", 
                                "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC")
@@ -23,14 +27,16 @@ emotion_word_classify <- function(keyword, emotion_dict){
 
 sentence_trim <- function(sentences){
   sentences <- gsub("【.+?】", "", sentences)
-  sentences <- gsub(pattern = " ", replacement ="", sentences)
+  sentences <- gsub("\\#.+?\\#", "", sentences)
+  sentences <- gsub("\\[.+?\\]", "", sentences)
   sentences <- gsub("\t", "", sentences) #有时需要使用\\\t 
   sentences <- gsub("[[:digit:]]*", "", sentences) #清除数字[a-zA-Z]
   sentences <- gsub("[a-zA-Z]", "", sentences)
-  sentences <- gsub("\\.", "", sentences)
-  sentences <- gsub(",", "，", sentences)
   sentences <- gsub("~|'", "", sentences)
+  sentences <- gsub("～", "", sentences)
+  sentences <- gsub("[/_:：@-]", "", sentences)
   sentences <- gsub("\\\"", "", sentences)
+  sentences <- gsub(pattern = " ", replacement ="", sentences)
   return(sentences)
 }
 
@@ -40,13 +46,23 @@ emotion_sentence_stat <- function(content, emotion_dict){
   emotion_table <- data.frame(t(rep(0,21)))
   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH", 
                                "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC")
-  cc = worker()
-  seg_list <- cc[content]
-  seg_list <- seg_list[seg_list %in% emotion_dict$word]
-  a <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dict)})
-  a <- do.call(rbind, a)
-  result <- apply(a, 2, sum)
-  return(result)
+  seg_list <- tryCatch(
+    {
+      cc = worker()
+      seg_list <- cc[content]
+      seg_list <- seg_list[seg_list %in% emotion_dict$word]
+    },
+    error = function(e){seg_list <- list()},
+    warning = function(w){seg_list <- list()}
+  )
+  if(length(seg_list)==0){
+    return(emotion_table)
+  }else{
+    a <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dict)})
+    a <- do.call(rbind, a)
+    result <- apply(a, 2, sum)
+    return(result)
+  }
 }
 
 # 把情感标签转化为中文----------------------------
@@ -76,39 +92,53 @@ emotion_load_dict <- function(filepath)
   colnames(emotion_dict)<- c("word", "pos", "meaning_count", "meaning_index", 
                              "emotion_1", "strength_1", "polar_1", 
                              "emotion_2", "strength_2", "polar_2")
-  emotion_dict <- emotion_dict %>% filter(meaning_index==1)
+  emotion_dict <- emotion_dict %>% dplyr::filter(meaning_index==1)
   return(emotion_dict)
 }
 
 # 输入数据框处理函数----------------------------
 
 emotion_analyse <- function(data_emotion, emotion_dict){
-  stat_list = mclapply(1:nrow(data_emotion), function(i){emotion_sentence_stat(data_emotion$content[i],emotion_dict)}, mc.cores = 16)
+  n_cores = 1#detectCores(logical = TRUE)
+  stat_list = mclapply(1:nrow(data_emotion), function(i){cat(i, "/", nrow(data_emotion), " done!\n", sep = "");
+         return(emotion_sentence_stat(data_emotion$content[i],emotion_dict))}, 
+         mc.cores = n_cores)
   stat_list = do.call(rbind, stat_list)
+  for(i in 1:ncol(stat_list)){
+    colnames(stat_list)[i] <- emotion_trans(colnames(stat_list)[i])
+  }
+  result = list()
+  result[["raw_data"]] <- stat_list
   stat_sum = apply(stat_list,2,sum)
   stat_names = names(stat_sum)
-  for(i in 1:length(stat_names)) stat_names[i] = emotion_trans(stat_names[i])
   stat_result = as.data.frame(stat_sum)
   rownames(stat_result)=1:nrow(stat_result)
   stat_result = data.frame("type" = stat_names, stat_result)
-  return(stat_result)
+  result[["stat_result"]] <- stat_result
+  return(result)
 }
 
 # 准备数据--------------------------------------
 
-data_temp <- lapply(1:nrow(data),function(i){data$content[i] = sentence_trim(data$content[i])})
-data_temp <- do.call(rbind, data_temp)
-data1 = data
-data1$content=data_temp
-rm(data_temp)
-
+# data_temp <- lapply(1:nrow(data),function(i){data$content[i] = sentence_trim(data$content[i])})
+# data_temp <- do.call(rbind, data_temp)
+# data1 = data
+# data1$content=data_temp
+# rm(data_temp)
+# 
 # 处理数据---------------------------------------
-
-stat_result = emotion_analyse(data1, emotion_dict)
-
-# 绘图分析结果
-
-p = ggplot(stat_result, aes(x = type,y = stat_sum))
-q = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("宝来2016情感分析")
-ggsave(file = "/home/jeffmxh/情感统计.png", plot=q, width = 30, height = 20, units = "cm")
+# 
+result_new = emotion_analyse(data1[2001:2500,], emotion_dict)
+result$raw_data = rbind(result$raw_data, result_new$raw_data)
+result$stat_result$stat_sum <- result$stat_result$stat_sum + result_new$stat_result$stat_sum
+result_all = result$raw_data
+keys = colnames(data_analysed)
+data_analysed = data.frame(data1[1:nrow(result_all),], result_all) %>% select(one_of(keys))
+write.table(data_analysed, file = "d:\\情感分析结果\\处理后数据.txt", row.names = FALSE, sep = "\t")
+# 
+# # 绘图分析结果
+# 
+p = ggplot(result$stat_result, aes(x = type,y = stat_sum, fill = type))
+p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
+ggsave(file = "d:\\情感分析结果\\情感统计.png", plot=p, width = 30, height = 20, units = "cm")
 
