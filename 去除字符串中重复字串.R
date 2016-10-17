@@ -34,6 +34,6 @@ string_dup <- function(raw_string){
     return(result_string)
   }
 }
-raw_string = "asdfasdfasd"
+raw_string = "asdfasdfasd"ad
 string_dup(raw_string)
 
