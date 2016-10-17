@@ -99,10 +99,10 @@ emotion_load_dict <- function(filepath)
 # 输入数据框处理函数----------------------------
 
 emotion_analyse <- function(data_emotion, emotion_dict){
-  n_cores = 1#detectCores(logical = TRUE)
+  n_core = 1
   stat_list = mclapply(1:nrow(data_emotion), function(i){cat(i, "/", nrow(data_emotion), " done!\n", sep = "");
          return(emotion_sentence_stat(data_emotion$content[i],emotion_dict))}, 
-         mc.cores = n_cores)
+         mc.cores = n_core)
   stat_list = do.call(rbind, stat_list)
   for(i in 1:ncol(stat_list)){
     colnames(stat_list)[i] <- emotion_trans(colnames(stat_list)[i])
@@ -118,6 +118,43 @@ emotion_analyse <- function(data_emotion, emotion_dict){
   return(result)
 }
 
+# 情感归类--------------------------------------
+
+emotion_classify <- function(data_analysed){
+  data_analysed <- data.frame(data_analysed,
+  "happy" = data_analysed$PA + data_analysed$PE,
+  "praise" = data_analysed$PD + data_analysed$PH + data_analysed$PG + data_analysed$PB + data_analysed$PK,
+  "angry" = data_analysed$NZ,
+  "sad" =  data_analysed$NB + data_analysed$NJ + data_analysed$NH + data_analysed$PF,
+  "fear" = data_analysed$NI + data_analysed$NC + data_analysed$NG,
+  "disagreeable" = data_analysed$NE + data_analysed$ND + data_analysed$NN + data_analysed$NK + data_analysed$NL,
+  "surprise" = data_analysed$PC
+  )
+  return(data_analysed)
+}
+
+# content标记情感--------------------------------------
+
+emotion_sign <- function(result_line){
+  if(sum(result_line[23:29])==0){
+    return("None")
+  }else{
+    result_line_sub <- result_line[23:29]
+    emotion <- colnames(result_line_sub)[result_line_sub==max(result_line_sub)]
+    return(emotion[1])
+  }
+}
+
+# 数据集标记情感---------------------------------------
+
+emotion_analysed_sign <- function(data_analysed){
+  n_core = 1
+  result_list <- mclapply(1:nrow(data_analysed), function(i){emotion_sign(data_analysed[i,])}, mc.cores = n_core)
+  result_table <- do.call(rbind, result_list)
+  data_analysed <- data.frame(data_analysed, "emotion" = result_table)
+  return(data_analysed)
+}
+
 # 准备数据--------------------------------------
 
 # data_temp <- lapply(1:nrow(data),function(i){data$content[i] = sentence_trim(data$content[i])})
@@ -128,17 +165,21 @@ emotion_analyse <- function(data_emotion, emotion_dict){
 # 
 # 处理数据---------------------------------------
 # 
-result_new = emotion_analyse(data1[2001:2500,], emotion_dict)
-result$raw_data = rbind(result$raw_data, result_new$raw_data)
-result$stat_result$stat_sum <- result$stat_result$stat_sum + result_new$stat_result$stat_sum
-result_all = result$raw_data
-keys = colnames(data_analysed)
-data_analysed = data.frame(data1[1:nrow(result_all),], result_all) %>% select(one_of(keys))
-write.table(data_analysed, file = "d:\\情感分析结果\\处理后数据.txt", row.names = FALSE, sep = "\t")
-# 
-# # 绘图分析结果
-# 
-p = ggplot(result$stat_result, aes(x = type,y = stat_sum, fill = type))
-p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
-ggsave(file = "d:\\情感分析结果\\情感统计.png", plot=p, width = 30, height = 20, units = "cm")
+# result_new = emotion_analyse(data1[2001:2500,], emotion_dict)
+# result$raw_data = rbind(result$raw_data, result_new$raw_data)
+# result$stat_result$stat_sum <- result$stat_result$stat_sum + result_new$stat_result$stat_sum
+# result_all = result$raw_data
+# keys = colnames(data_analysed)
+# data_analysed = data.frame(data1[1:nrow(result_all),], result_all) %>% select(one_of(keys))
+# data_analysed = emotion_classify(data_analysed)
+# data_analysed$content = as.vector(data_analysed$content)
+# data_analysed = emotion_analysed_sign(data_analysed)
+
+# write.table(data_analysed, file = "d:\\情感分析结果\\处理后数据.txt", row.names = FALSE, sep = "\t")
+# # 
+# # # 绘图分析结果
+# # 
+# p = ggplot(result$stat_result, aes(x = type,y = stat_sum, fill = type))
+# p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
+# ggsave(file = "d:\\情感分析结果\\情感统计.png", plot=p, width = 30, height = 20, units = "cm")
 
