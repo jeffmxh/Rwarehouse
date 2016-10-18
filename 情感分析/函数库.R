@@ -57,7 +57,7 @@ emotion_sentence_stat <- function(content, emotion_dict){
     {
       cc = worker()
       seg_list <- cc[content]
-      seg_list <- seg_list[seg_list %in% emotion_dict$word]
+      seg_list <- dplyr::intersect(seg_list, emotion_dict$word)#seg_list[seg_list %in% emotion_dict$word]
     },
     error = function(e){seg_list <- list()},
     warning = function(w){seg_list <- list()}
@@ -143,10 +143,10 @@ emotion_sign <- function(result_line){
 
 # 数据集标记情感---------------------------------------
 
-emotion_analysed_sign <- function(data_analysed){
+emotion_analysed_sign <- function(data_raw_text){
   n_core = 1
-  result_list <- mclapply(1:nrow(data_analysed), function(i){emotion_sign(data_analysed[i,])}, mc.cores = n_core)
+  result_list <- mclapply(1:nrow(data_raw_text), function(i){emotion_sign(data_raw_text[i,])}, mc.cores = n_core)
   result_table <- do.call(rbind, result_list)
-  data_analysed <- data.frame(data_analysed, "emotion" = result_table)
-  return(data_analysed)
+  data_raw_text <- data.frame(data_raw_text, "emotion" = result_table)
+  return(data_raw_text)
 }

@@ -14,7 +14,7 @@ rm(data_temp)
 
 处理数据---------------------------------------
 
-result_new = emotion_analyse(data1[2001:2500,], emotion_dict)
+result_new = emotion_analyse(data[1:10,], emotion_dict)
 result$raw_data = rbind(result$raw_data, result_new$raw_data)
 result$stat_result$stat_sum <- result$stat_result$stat_sum + result_new$stat_result$stat_sum
 result_all = result$raw_data
