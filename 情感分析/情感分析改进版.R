@@ -4,7 +4,7 @@ library(openxlsx)
 library(dplyr)
 library(ggplot2)
 library(data.table)
-library(fastmatch)
+# library(fastmatch)
 
 # 加载情感词典----------------------------------
 
@@ -33,7 +33,7 @@ emotion_text_segmenter <- function(data_emotion, column_deal){
       warning = function(w){seg_list <- c()}
     )
     return(seg_list)
-  },mc.cores = 16
+  },mc.cores = 32
   )
   return(segment_list)
 }
@@ -64,9 +64,9 @@ emotion_sentence_stat <- function(seg_list, emotion_dict){
   emotion_table <- data.frame(t(rep(0,21)))
   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH", 
                                "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC")
-  seg_list <- #seg_list[!is.na(fmatch(seg_list, emotion_dict$word))]
+  seg_list <- dplyr::intersect(seg_list, emotion_dict$word)
+    #seg_list[!is.na(fmatch(seg_list, emotion_dict$word))]
     # seg_list[seg_list %chin% emotion_dict$word]
-    dplyr::intersect(seg_list, emotion_dict$word)
   if(length(seg_list)==0){
     return(emotion_table)
   }else{
@@ -129,13 +129,12 @@ emotion_sign <- function(result_line){
 # 数据集标记情感---------------------------------------
 
 emotion_analysed_sign <- function(data_analysed){
-  n_core = 16
+  n_core = 32
   result_list <- mclapply(1:nrow(data_analysed), function(i){emotion_sign(data_analysed[i,])}, mc.cores = n_core)
   result_table <- do.call(rbind, result_list)
   data_analysed <- data.frame(data_analysed, "emotion" = result_table)
   return(data_analysed)
 }
-
 
 # 输入数据框处理函数----------------------------
 
@@ -143,7 +142,7 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   segment_list <- emotion_text_segmenter(data_emotion, column_to_deal)
   stat_list = mclapply(1:length(segment_list), function(i){
     emotion_sentence_stat(segment_list[[i]],emotion_dict)}, 
-    mc.cores = 16)
+    mc.cores = 32)
   stat_list = do.call(rbind, stat_list) %>% as.data.frame()
   stat_list <- emotion_classify(stat_list)
   for(i in 1:ncol(stat_list)){
@@ -161,12 +160,10 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   return(result)
 }
 # data_raw = as.data.frame(articles1)
-# time_temp = Sys.time()
-# result_temp = emotion_analyse(data_raw[1:10,], "content", emotion_dict)
-# cat("用时:", Sys.time() - time_temp, sep = "")
+time_temp = Sys.time()
+result_temp = emotion_analyse(data_raw[1:10000,], "content", emotion_dict)
+cat("用时:", Sys.time() - time_temp, sep = "")
 # result_all$raw_data = rbind(result_all$raw_data, result_temp$raw_data)
 # result_all$stat_result$stat_sum = result_all$stat_result$stat_sum + result_temp$stat_result$stat_sum
-# result = result_all
-# cat("用时:", Sys.time() - time_temp, sep = "")
 # p = ggplot(result$stat_result, aes(x = type,y = stat_sum, fill = type))
 # p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
