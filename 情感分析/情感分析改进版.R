@@ -3,7 +3,7 @@ library(parallel)
 library(openxlsx)
 library(dplyr)
 library(ggplot2)
-library(data.table)
+# library(data.table)
 # library(fastmatch)
 
 # 加载情感词典----------------------------------
@@ -27,7 +27,7 @@ emotion_load_dict <- function(filepath)
 emotion_text_segmenter <- function(data_emotion, column_deal){
   target_text <- data_emotion[, column_deal]
   cc <- worker()
-  segment_list = mclapply(1:length(target_text), function(i){
+  segment_list <- mclapply(1:length(target_text), function(i){
     seg_list <- tryCatch(
       {
         cc[target_text[i]]
@@ -65,23 +65,6 @@ emotion_word_classify <- function(keyword, emotion_dictionary){
 
 # 统计句子中的情感--------------------------------
 
-# emotion_sentence_stat <- function(seg_list, emotion_dict){
-#   emotion_table <- data.frame(t(rep(0,22)))
-#   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH",
-#                                "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC")
-#   seg_list <- seg_list[seg_list %in% emotion_dict$word]
-#     # seg_list[!is.na(fmatch(seg_list, emotion_dict$word))]
-#     # seg_list[seg_list %chin% emotion_dict$word]
-#   if(length(seg_list)==0){
-#     return(emotion_table)
-#   }else{
-#     a <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dict)})
-#     a <- do.call(rbind, a)
-#     result <- apply(a, 2, sum)
-#     return(result)
-#   }
-# }
-
 emotion_sentence_stat <- function(seg_list, emotion_dict){
   emotion_table <- data.frame(t(rep(0,22)))
   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH",
@@ -91,7 +74,9 @@ emotion_sentence_stat <- function(seg_list, emotion_dict){
   if(nrow(sub_emotion_dict)==0){
     return(emotion_table)
   }else{
-    seg_list <- seg_list[seg_list %in% sub_emotion_dict$word]
+    if(length(seg_list)!=1){
+      seg_list <- seg_list[seg_list %in% sub_emotion_dict$word]
+    }
     a <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], sub_emotion_dict)})
     a <- do.call(rbind, a)
     result <- apply(a, 2, sum)
@@ -177,14 +162,14 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   cat("------------------------------------------\n")
   time_temp <- Sys.time()
   cat("开始情感分析：\n")
-  stat_list = mclapply(1:length(segment_list), function(i){
+  stat_list <- mclapply(1:length(segment_list), function(i){
     emotion_sentence_stat(segment_list[[i]],emotion_dict)},
     mc.cores = 16)
   cat("情感分析完成，用时：", Sys.time()-time_temp, "\n", sep = "")
   cat("------------------------------------------\n")
   time_temp <- Sys.time()
   cat("开始do.call()：\n")
-  stat_list = do.call(rbind, stat_list) %>% as.data.frame()
+  stat_list <- do.call(rbind, stat_list) %>% as.data.frame()
   cat("do.call()完成，用时：", Sys.time()-time_temp, "\n", sep = "")
   cat("------------------------------------------\n")
   time_temp <- Sys.time()
@@ -209,20 +194,27 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   cat("开始生成结果：\n")
   result = list()
   result[["raw_data"]] <- cbind(data_emotion, stat_list)
-  stat_sum = apply(stat_list, 2, sum)
-  stat_names = names(stat_sum)
-  stat_result = as.data.frame(stat_sum)
-  rownames(stat_result)=1:nrow(stat_result)
-  stat_result = data.frame("type" = stat_names, stat_result)
+  stat_sum <- apply(stat_list[,1:29], 2, sum)
+  stat_names <- names(stat_sum)
+  stat_result <- as.data.frame(stat_sum)
+  rownames(stat_result) <- 1:nrow(stat_result)
+  stat_result <- data.frame("type" = stat_names, stat_result)
   result[["stat_result"]] <- stat_result
   cat("成功生成结果对象，用时：", Sys.time()-time_temp, "\n", sep = "")
   cat("------------------------------------------\n")
   return(result)
 }
+# 分析过程------------------------------------------
 # data_raw = as.data.frame(articles1)
-time_temp = Sys.time()
-result_emotion = emotion_analyse(data_raw[1:1000,], "content", emotion_dict)
+time_temp <- Sys.time()
+result_emotion <- emotion_analyse(data_raw, "content", emotion_dict)
 cat("总计用时:", Sys.time() - time_temp, sep = "")
 rm(time_temp)
-# p = ggplot(result$stat_result, aes(x = type,y = stat_sum, fill = type))
-# p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
+# result_all$raw_data <- rbind(result_all$raw_data, result_emotion$raw_data)
+# result_all$stat_result$stat_sum <- result_all$stat_result$stat_sum + result_emotion$stat_result$stat_sum
+# write.table(result_all$raw_data, file = "/home/jeffmxh/emotion_result_all.txt", row.names = FALSE, sep = "\t")
+# rm(result_emotion)
+# 画图显示结果--------------------------------------
+p = ggplot(result_all$stat_result[-22,], aes(x = type,y = stat_sum, fill = type))
+p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
+ggsave(file = "/home/jeffmxh/情感统计.png", plot=p, width = 30, height = 20, units = "cm")
