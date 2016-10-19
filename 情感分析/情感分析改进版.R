@@ -15,7 +15,10 @@ emotion_load_dict <- function(filepath)
   colnames(emotion_dict)<- c("word", "pos", "meaning_count", "meaning_index", 
                              "emotion_1", "strength_1", "polar_1", 
                              "emotion_2", "strength_2", "polar_2")
-  emotion_dict <- emotion_dict %>% dplyr::filter(meaning_index==1)
+  emotion_dict <- emotion_dict %>% 
+    dplyr::filter(meaning_index==1) %>%
+    dplyr::filter(polar_1 %in% c(0,1,2))
+  emotion_dict[emotion_dict$polar_1==2,7]=-1
   return(emotion_dict)
 }
 
@@ -33,7 +36,7 @@ emotion_text_segmenter <- function(data_emotion, column_deal){
       warning = function(w){seg_list <- c()}
     )
     return(seg_list)
-  },mc.cores = 32
+  },mc.cores = 16
   )
   return(segment_list)
 }
@@ -41,16 +44,18 @@ emotion_text_segmenter <- function(data_emotion, column_deal){
 
 # 词汇情感分析------------------------------------
 
-emotion_word_classify <- function(keyword, emotion_dict){
-  emotions_temp <- emotion_dict %>% dplyr::filter(word==keyword)
-  emotions_temp <- emotions_temp[1,]
-  emotion_table <- data.frame(t(rep(0,21)))
+emotion_word_classify <- function(keyword, emotion_dictionary){
+  emotions_temp <- emotion_dictionary %>% dplyr::filter(word==keyword)
+  
+  emotion_table <- data.frame(t(rep(0,22)))
   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH", 
-                               "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC")
+                               "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC", "POLAR")
   if(nrow(emotions_temp)==0){
     return(emotion_table)
   }else{
-    emotion_table[1,emotions_temp$emotion_1] <- emotions_temp$strength_1
+    emotions_temp <- emotions_temp[1,]
+    emotion_table[1, emotions_temp$emotion_1] <- emotions_temp$strength_1
+    emotion_table[1, "POLAR"] <- emotions_temp$polar_1
     if(!is.na(emotions_temp$emotion_2)){
       emotion_table[1,emotions_temp$emotion_2] <- emotions_temp$strength_2
     }
@@ -60,17 +65,34 @@ emotion_word_classify <- function(keyword, emotion_dict){
 
 # 统计句子中的情感--------------------------------
 
+# emotion_sentence_stat <- function(seg_list, emotion_dict){
+#   emotion_table <- data.frame(t(rep(0,22)))
+#   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH",
+#                                "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC")
+#   seg_list <- seg_list[seg_list %in% emotion_dict$word]
+#     # seg_list[!is.na(fmatch(seg_list, emotion_dict$word))]
+#     # seg_list[seg_list %chin% emotion_dict$word]
+#   if(length(seg_list)==0){
+#     return(emotion_table)
+#   }else{
+#     a <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dict)})
+#     a <- do.call(rbind, a)
+#     result <- apply(a, 2, sum)
+#     return(result)
+#   }
+# }
+
 emotion_sentence_stat <- function(seg_list, emotion_dict){
-  emotion_table <- data.frame(t(rep(0,21)))
-  colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH", 
-                               "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC")
-  seg_list <- dplyr::intersect(seg_list, emotion_dict$word)
-    #seg_list[!is.na(fmatch(seg_list, emotion_dict$word))]
-    # seg_list[seg_list %chin% emotion_dict$word]
-  if(length(seg_list)==0){
+  emotion_table <- data.frame(t(rep(0,22)))
+  colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH",
+                               "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC", "POLAR")
+  # sub_emotion_dict <- emotion_dict[emotion_dict$word %in% seg_list,]
+  sub_emotion_dict <- emotion_dict %>% dplyr::filter(word %in% seg_list)
+  if(nrow(sub_emotion_dict)==0){
     return(emotion_table)
   }else{
-    a <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dict)})
+    seg_list <- seg_list[seg_list %in% sub_emotion_dict$word]
+    a <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], sub_emotion_dict)})
     a <- do.call(rbind, a)
     result <- apply(a, 2, sum)
     return(result)
@@ -94,7 +116,8 @@ emotion_trans <- function(emo_eng){
          "PC" = "惊奇",         "happy" = "乐",
          "praise" = "好",       "angry" = "怒",
          "sad" = "哀",          "fear" = "惧",
-         "disagreeable" = "恶", "surprise" = "惊"
+         "disagreeable" = "恶", "surprise" = "惊",
+         "POLAR" = "语义"
   )
 }
 
@@ -117,10 +140,10 @@ emotion_classify <- function(data_analysed){
 # content标记情感--------------------------------------
 
 emotion_sign <- function(result_line){
-  if(sum(result_line[22:28])==0){
+  if(sum(result_line[23:29])==0){
     return("None")
   }else{
-    result_line_sub <- result_line[22:28]
+    result_line_sub <- result_line[23:29]
     emotion <- colnames(result_line_sub)[result_line_sub==max(result_line_sub)]
     return(emotion[1])
   }
@@ -129,7 +152,7 @@ emotion_sign <- function(result_line){
 # 数据集标记情感---------------------------------------
 
 emotion_analysed_sign <- function(data_analysed){
-  n_core = 32
+  n_core = 16
   result_list <- mclapply(1:nrow(data_analysed), function(i){emotion_sign(data_analysed[i,])}, mc.cores = n_core)
   result_table <- do.call(rbind, result_list)
   data_analysed <- data.frame(data_analysed, "emotion" = result_table)
@@ -139,16 +162,39 @@ emotion_analysed_sign <- function(data_analysed){
 # 输入数据框处理函数----------------------------
 
 emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
+  cat("------------------------------------------\n")
+  cat("开始分词：\n")
+  time_temp <- Sys.time()
   segment_list <- emotion_text_segmenter(data_emotion, column_to_deal)
+  cat("分词完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+  cat("------------------------------------------\n")
+  time_temp <- Sys.time()
+  cat("开始情感分析：\n")
   stat_list = mclapply(1:length(segment_list), function(i){
-    emotion_sentence_stat(segment_list[[i]],emotion_dict)}, 
-    mc.cores = 32)
+    emotion_sentence_stat(segment_list[[i]],emotion_dict)},
+    mc.cores = 16)
+  cat("情感分析完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+  cat("------------------------------------------\n")
+  time_temp <- Sys.time()
+  cat("开始do.call()：\n")
   stat_list = do.call(rbind, stat_list) %>% as.data.frame()
+  cat("do.call()完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+  cat("------------------------------------------\n")
+  time_temp <- Sys.time()
+  cat("开始情感分类：\n")
   stat_list <- emotion_classify(stat_list)
+  cat("情感分类完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+  cat("------------------------------------------\n")
   for(i in 1:ncol(stat_list)){
     colnames(stat_list)[i] <- emotion_trans(colnames(stat_list)[i])
   }
+  time_temp <- Sys.time()
+  cat("开始标记情感分类：\n")
   stat_list <- emotion_analysed_sign(stat_list)
+  cat("标记情感分类完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+  cat("------------------------------------------\n")
+  time_temp <- Sys.time()
+  cat("开始生成结果：\n")
   result = list()
   result[["raw_data"]] <- cbind(data_emotion, stat_list)
   stat_sum = apply(stat_list[,1:28],2,sum)
@@ -157,12 +203,15 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   rownames(stat_result)=1:nrow(stat_result)
   stat_result = data.frame("type" = stat_names, stat_result)
   result[["stat_result"]] <- stat_result
+  cat("成功生成结果对象，用时：", Sys.time()-time_temp, "\n", sep = "")
+  cat("------------------------------------------\n")
   return(result)
 }
 # data_raw = as.data.frame(articles1)
 time_temp = Sys.time()
 result_temp = emotion_analyse(data_raw[1:10000,], "content", emotion_dict)
-cat("用时:", Sys.time() - time_temp, sep = "")
+cat("总计用时:", Sys.time() - time_temp, sep = "")
+rm(time_temp)
 # result_all$raw_data = rbind(result_all$raw_data, result_temp$raw_data)
 # result_all$stat_result$stat_sum = result_all$stat_result$stat_sum + result_temp$stat_result$stat_sum
 # p = ggplot(result$stat_result, aes(x = type,y = stat_sum, fill = type))
