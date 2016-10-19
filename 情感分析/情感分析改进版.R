@@ -102,6 +102,13 @@ emotion_sentence_stat <- function(seg_list, emotion_dict){
 # 把情感标签转化为中文----------------------------
 
 emotion_trans <- function(emo_eng){
+  # emo_vec <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH",
+  #              "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC", "happy",
+  #              "praise", "angry", "sad", "fear", "disagreeable", "surprise", "POLAR")
+  # names(emo_vec) <- c("快乐", "安心", "尊敬", "赞扬", "相信", "喜爱", "祝愿", "愤怒", "悲伤",
+  #                     "失望", "内疚", "思", "慌", "恐惧", "羞", "烦闷", "憎恶", "贬责", "妒忌",
+  #                     "怀疑", "惊奇", "语义", "乐", "好", "怒",  "哀", "惧", "恶", "惊")
+  # return(names(emo_vec[emo_vec==emo_eng]))
   switch(emo_eng,
          "PA" = "快乐",         "PE" = "安心",
          "PD" = "尊敬",         "PH" = "赞扬",
@@ -185,9 +192,14 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   stat_list <- emotion_classify(stat_list)
   cat("情感分类完成，用时：", Sys.time()-time_temp, "\n", sep = "")
   cat("------------------------------------------\n")
-  for(i in 1:ncol(stat_list)){
-    colnames(stat_list)[i] <- emotion_trans(colnames(stat_list)[i])
-  }
+  time_temp <- Sys.time()
+  cat("开始转化情感中文标记：\n")
+  colnames(stat_list) <- c("快乐", "安心", "尊敬", "赞扬", "相信", "喜爱", "祝愿", 
+                           "愤怒", "悲伤", "失望", "内疚", "思", "慌", "恐惧", "羞",
+                           "烦闷", "憎恶", "贬责", "妒忌", "怀疑", "惊奇", "语义", 
+                           "乐", "好", "怒",  "哀", "惧", "恶", "惊")
+  cat("转化情感中文标记完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+  cat("------------------------------------------\n")
   time_temp <- Sys.time()
   cat("开始标记情感分类：\n")
   stat_list <- emotion_analysed_sign(stat_list)
@@ -197,7 +209,7 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   cat("开始生成结果：\n")
   result = list()
   result[["raw_data"]] <- cbind(data_emotion, stat_list)
-  stat_sum = apply(stat_list[,1:28],2,sum)
+  stat_sum = apply(stat_list, 2, sum)
   stat_names = names(stat_sum)
   stat_result = as.data.frame(stat_sum)
   rownames(stat_result)=1:nrow(stat_result)
@@ -209,10 +221,8 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
 }
 # data_raw = as.data.frame(articles1)
 time_temp = Sys.time()
-result_temp = emotion_analyse(data_raw[1:10000,], "content", emotion_dict)
+result_emotion = emotion_analyse(data_raw[1:1000,], "content", emotion_dict)
 cat("总计用时:", Sys.time() - time_temp, sep = "")
 rm(time_temp)
-# result_all$raw_data = rbind(result_all$raw_data, result_temp$raw_data)
-# result_all$stat_result$stat_sum = result_all$stat_result$stat_sum + result_temp$stat_result$stat_sum
 # p = ggplot(result$stat_result, aes(x = type,y = stat_sum, fill = type))
 # p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
