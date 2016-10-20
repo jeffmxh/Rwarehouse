@@ -225,15 +225,17 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   stat_result <- as.data.frame(stat_sum)
   rownames(stat_result) <- 1:nrow(stat_result)
   stat_result <- data.frame("type" = stat_names, stat_result)
+  stat_result$type = factor(stat_result$type, levels = unique(stat_result$type))
   result[["stat_result"]] <- stat_result
   cat("成功生成结果对象，用时：", Sys.time()-time_temp, "\n", sep = "")
   cat("------------------------------------------\n")
   return(result)
 }
 # 分析过程------------------------------------------
+
 # data_raw = as.data.frame(articles1)
 # time_temp <- Sys.time()
-# result_emotion <- emotion_analyse(data_raw, "content", emotion_dict)
+# result_emotion <- emotion_analyse(articles1[1:1000,], "content", emotion_dict)
 # cat("总计用时:", Sys.time() - time_temp, sep = "")
 # rm(time_temp)
 # result_all$raw_data <- rbind(result_all$raw_data, result_emotion$raw_data)
@@ -241,6 +243,21 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
 # write.table(result_all$raw_data, file = "/home/jeffmxh/emotion_result_all.txt", row.names = FALSE, sep = "\t")
 # rm(result_emotion)
 # 画图显示结果--------------------------------------
-# p = ggplot(result_all$stat_result[-22,], aes(x = type,y = stat_sum, fill = type))
-# p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
-# ggsave(file = "/home/jeffmxh/情感统计.png", plot=p, width = 30, height = 20, units = "cm")
+
+# p = ggplot(result_all$stat_result[1:21,], aes(x = type,y = stat_sum, fill = type))
+# p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感详细统计")# + theme(legend.position = "none")
+# p = p + geom_vline(xintercept = c(2.5, 7.5, 8.5, 12.5, 15.5, 20.5), color = "red")
+# p = p + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"), 
+#           plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1), 
+#           plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
+#           legend.position = "none")
+
+# q = ggplot(result_all$stat_result[23:29,], aes(x = type,y = stat_sum, fill = type))
+# q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感大类统计") + theme(legend.position = "none")
+# q = q + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"), 
+#           plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1), 
+#           plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
+#           legend.position = "none")
+# ggsave(file = "/home/jeffmxh/情感详细统计.png", plot=p, width = 30, height = 20, units = "cm")
+# ggsave(file = "/home/jeffmxh/情感大类统计.png", plot=q, width = 30, height = 20, units = "cm")
+# rm(p,q)
