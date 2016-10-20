@@ -63,6 +63,32 @@ emotion_word_classify <- function(keyword, emotion_dictionary){
   }
 }
 
+# 分析句子情感, 用于分析结果------------------------------------
+
+emotion_sentence_analyse <- function(sentence, emotion_dictionary){
+  cc <- worker()
+  seg_list <- cc[sentence]
+  if(length(seg_list)>1){
+    seg_list <- seg_list[seg_list %in% emotion_dict$word]
+  }
+  result_list <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dictionary)})
+  result_list <- do.call(rbind, result_list)
+  result_list <- emotion_classify(result_list)
+  result_list <- data.frame("word" = seg_list, result_list)
+  result <- list()
+  result[["原文"]] <- sentence
+  result[["褒义"]] <- result_list %>% filter(POLAR>0) %>% select(word) %>% unlist() %>% as.character()
+  result[["贬义"]] <- result_list %>% filter(POLAR<0) %>% select(word) %>% unlist() %>% as.character()
+  result[["乐"]] <- result_list %>% filter(happy>0) %>% select(word) %>% unlist() %>% as.character()
+  result[["好"]] <- result_list %>% filter(praise>0) %>% select(word) %>% unlist() %>% as.character()
+  result[["怒"]] <- result_list %>% filter(angry>0) %>% select(word) %>% unlist() %>% as.character()
+  result[["哀"]] <- result_list %>% filter(sad>0) %>% select(word) %>% unlist() %>% as.character()
+  result[["惧"]] <- result_list %>% filter(fear>0) %>% select(word) %>% unlist() %>% as.character()
+  result[["恶"]] <- result_list %>% filter(disagreeable>0) %>% select(word) %>% unlist() %>% as.character()
+  result[["惊"]] <- result_list %>% filter(surprise>0) %>% select(word) %>% unlist() %>% as.character()
+  return(result)
+}
+
 # 统计句子中的情感--------------------------------
 
 emotion_sentence_stat <- function(seg_list, emotion_dict){
