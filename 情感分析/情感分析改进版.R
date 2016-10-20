@@ -71,7 +71,7 @@ emotion_sentence_analyse <- function(sentence, emotion_dictionary){
   if(length(seg_list)>1){
     seg_list <- seg_list[seg_list %in% emotion_dict$word]
   }
-  result_list <- lapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dictionary)})
+  result_list <- mclapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dictionary)}, mc.cores = 12)
   result_list <- do.call(rbind, result_list)
   result_list <- emotion_classify(result_list)
   result_list <- data.frame("word" = seg_list, result_list)
@@ -232,15 +232,15 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
 }
 # 分析过程------------------------------------------
 # data_raw = as.data.frame(articles1)
-time_temp <- Sys.time()
-result_emotion <- emotion_analyse(data_raw, "content", emotion_dict)
-cat("总计用时:", Sys.time() - time_temp, sep = "")
-rm(time_temp)
+# time_temp <- Sys.time()
+# result_emotion <- emotion_analyse(data_raw, "content", emotion_dict)
+# cat("总计用时:", Sys.time() - time_temp, sep = "")
+# rm(time_temp)
 # result_all$raw_data <- rbind(result_all$raw_data, result_emotion$raw_data)
 # result_all$stat_result$stat_sum <- result_all$stat_result$stat_sum + result_emotion$stat_result$stat_sum
 # write.table(result_all$raw_data, file = "/home/jeffmxh/emotion_result_all.txt", row.names = FALSE, sep = "\t")
 # rm(result_emotion)
 # 画图显示结果--------------------------------------
-p = ggplot(result_all$stat_result[-22,], aes(x = type,y = stat_sum, fill = type))
-p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
-ggsave(file = "/home/jeffmxh/情感统计.png", plot=p, width = 30, height = 20, units = "cm")
+# p = ggplot(result_all$stat_result[-22,], aes(x = type,y = stat_sum, fill = type))
+# p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感统计") + theme(legend.position = "none")
+# ggsave(file = "/home/jeffmxh/情感统计.png", plot=p, width = 30, height = 20, units = "cm")
