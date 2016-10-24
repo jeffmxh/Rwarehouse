@@ -180,45 +180,59 @@ emotion_analysed_sign <- function(data_analysed){
 
 # 输入数据框处理函数----------------------------
 
-emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
-  cat("------------------------------------------\n")
-  cat("开始分词：\n")
-  time_temp <- Sys.time()
+emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_progress = TRUE){
+  if(show_progress){
+    cat("------------------------------------------\n")
+    cat("开始分词：\n")
+    time_temp <- Sys.time()
+  }
   segment_list <- emotion_text_segmenter(data_emotion, column_to_deal)
-  cat("分词完成，用时：", Sys.time()-time_temp, "\n", sep = "")
-  cat("------------------------------------------\n")
-  time_temp <- Sys.time()
-  cat("开始情感分析：\n")
+  if(show_progress){
+    cat("分词完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+    time_temp <- Sys.time()
+    cat("开始情感分析：\n")
+  }
   stat_list <- mclapply(1:length(segment_list), function(i){
     emotion_sentence_stat(segment_list[[i]],emotion_dict)},
     mc.cores = 16)
-  cat("情感分析完成，用时：", Sys.time()-time_temp, "\n", sep = "")
-  cat("------------------------------------------\n")
-  time_temp <- Sys.time()
-  cat("开始do.call()：\n")
+  if(show_progress){
+    cat("情感分析完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+    time_temp <- Sys.time()
+    cat("开始do.call()：\n")
+  }
   stat_list <- do.call(rbind, stat_list) %>% as.data.frame()
-  cat("do.call()完成，用时：", Sys.time()-time_temp, "\n", sep = "")
-  cat("------------------------------------------\n")
-  time_temp <- Sys.time()
-  cat("开始情感分类：\n")
+  if(show_progress){
+    cat("do.call()完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+    time_temp <- Sys.time()
+    cat("开始情感分类：\n")
+  }
   stat_list <- emotion_classify(stat_list)
-  cat("情感分类完成，用时：", Sys.time()-time_temp, "\n", sep = "")
-  cat("------------------------------------------\n")
-  time_temp <- Sys.time()
-  cat("开始转化情感中文标记：\n")
+  if(show_progress){
+    cat("情感分类完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+    time_temp <- Sys.time()
+    cat("开始转化情感中文标记：\n")
+  }
   colnames(stat_list) <- c("快乐", "安心", "尊敬", "赞扬", "相信", "喜爱", "祝愿", 
                            "愤怒", "悲伤", "失望", "内疚", "思", "慌", "恐惧", "羞",
                            "烦闷", "憎恶", "贬责", "妒忌", "怀疑", "惊奇", "语义", 
                            "乐", "好", "怒",  "哀", "惧", "恶", "惊")
-  cat("转化情感中文标记完成，用时：", Sys.time()-time_temp, "\n", sep = "")
-  cat("------------------------------------------\n")
-  time_temp <- Sys.time()
-  cat("开始标记情感分类：\n")
+  if(show_progress){
+    cat("转化情感中文标记完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+    time_temp <- Sys.time()
+    cat("开始标记情感分类：\n")
+  }
   stat_list <- emotion_analysed_sign(stat_list)
-  cat("标记情感分类完成，用时：", Sys.time()-time_temp, "\n", sep = "")
-  cat("------------------------------------------\n")
-  time_temp <- Sys.time()
-  cat("开始生成结果：\n")
+  if(show_progress){
+    cat("标记情感分类完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+    time_temp <- Sys.time()
+    cat("开始生成结果：\n")
+  }
   result = list()
   result[["raw_data"]] <- cbind(data_emotion, stat_list)
   stat_sum <- apply(stat_list[,1:29], 2, sum)
@@ -228,42 +242,50 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict){
   stat_result <- data.frame("type" = stat_names, stat_result)
   stat_result$type = factor(stat_result$type, levels = unique(stat_result$type))
   result[["stat_result"]] <- stat_result
-  cat("成功生成结果对象，用时：", Sys.time()-time_temp, "\n", sep = "")
-  cat("------------------------------------------\n")
+  if(show_progress){
+    cat("成功生成结果对象，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+  }
   return(result)
 }
 # 分析过程------------------------------------------
 
 # data_raw = as.data.frame(articles1)
-# time_temp <- Sys.time()
-# result_emotion <- emotion_analyse(articles1[1:1000,], "content", emotion_dict)
-# cat("总计用时:", Sys.time() - time_temp, sep = "")
-# rm(time_temp)
+time_temp <- Sys.time()
+result_emotion <- emotion_analyse(articles1[1:10,], "content", emotion_dict)
+cat("总计用时:", Sys.time() - time_temp, sep = "")
+rm(time_temp)
+# save(result_emotion_analyse_all_10_21, file = "/home/jeffmxh/result_emotion_all_10_21.RData")
 # result_all$raw_data <- rbind(result_all$raw_data, result_emotion$raw_data)
 # result_all$stat_result$stat_sum <- result_all$stat_result$stat_sum + result_emotion$stat_result$stat_sum
 # write.table(result_all$raw_data, file = "/home/jeffmxh/emotion_result_all.txt", row.names = FALSE, sep = "\t")
 # rm(result_emotion)
 # 画图显示结果--------------------------------------
-
-plot_data_detail <- data.frame("class" = c(rep("乐", 2), rep("好", 5), rep("怒", 1), rep("哀", 4),
-                                           rep("惧", 3), rep("恶", 5), rep("惊", 1)),
-                               result_all$stat_result[1:21,])
-p = ggplot(plot_data_detail, aes(x = type,y = stat_sum, fill = class))
-p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感详细统计")
-p = p + geom_vline(xintercept = c(2.5, 7.5, 8.5, 12.5, 15.5, 20.5), color = "red")
-p = p + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
-          plot.title = element_text(colour = "black", face = "bold", size = 22, vjust = 1),
-          plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
-          legend.position = "none")
-p_ly = ggplotly(p, tooltip = c("fill", "x", "y"))
-
-q = ggplot(result_all$stat_result[23:29,], aes(x = type,y = stat_sum, fill = type))
-q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感大类统计")
-q = q + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
-          plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1),
-          plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
-          legend.position = "none")
-q_ly = ggplotly(q)
-ggsave(file = "/home/jeffmxh/情感详细统计.png", plot=p, width = 30, height = 20, units = "cm")
-ggsave(file = "/home/jeffmxh/情感大类统计.png", plot=q, width = 30, height = 20, units = "cm")
-rm(p,q)
+# emotion_plot_detail <- function(result_list){
+#   plot_data_detail <- data.frame("class" = c(rep("乐", 2), rep("好", 5), rep("怒", 1), rep("哀", 4),
+#                                              rep("惧", 3), rep("恶", 5), rep("惊", 1)),
+#                                  result_list$stat_result[1:21,])
+#   p = ggplot(plot_data_detail, aes(x = type,y = stat_sum, fill = class))
+#   p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感详细统计")
+#   p = p + geom_vline(xintercept = c(2.5, 7.5, 8.5, 12.5, 15.5, 20.5), color = "red")
+#   p = p + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
+#             plot.title = element_text(colour = "black", face = "bold", size = 22, vjust = 1),
+#             plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
+#             legend.position = "none")
+#   p_ly = ggplotly(p, tooltip = c("fill", "x", "y"))
+#   return(p_ly)
+# }
+# 
+# emotion_plot_class <- function(result_list){
+#   q = ggplot(result_list$stat_result[23:29,], aes(x = type,y = stat_sum, fill = type))
+#   q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感大类统计")
+#   q = q + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
+#             plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1),
+#             plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
+#             legend.position = "none")
+#   q_ly = ggplotly(q)
+#   return(q_ly)
+# }
+# ggsave(file = "/home/jeffmxh/情感详细统计.png", plot=p, width = 30, height = 20, units = "cm")
+# ggsave(file = "/home/jeffmxh/情感大类统计.png", plot=q, width = 30, height = 20, units = "cm")
+# rm(p,q)
