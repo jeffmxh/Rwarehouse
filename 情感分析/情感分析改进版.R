@@ -7,6 +7,14 @@ library(plotly)
 # library(data.table)
 # library(fastmatch)
 
+# 设置核心数------------------------------------
+
+if(.Platform$OS.type=="windows"){
+  n_cores = 1
+}else{
+  n_cores = 16
+}
+
 # 加载情感词典----------------------------------
 
 emotion_load_dict <- function(filepath)
@@ -26,6 +34,11 @@ emotion_load_dict <- function(filepath)
 # 对评论进行分词处理---------------------------
 
 emotion_text_segmenter <- function(data_emotion, column_deal){
+  if(.Platform$OS.type=="windows"){
+    n_cores = 1
+  }else{
+    n_cores = 16
+  }
   target_text <- data_emotion[, column_deal]
   cc <- worker()
   segment_list <- mclapply(1:length(target_text), function(i){
@@ -37,7 +50,7 @@ emotion_text_segmenter <- function(data_emotion, column_deal){
       warning = function(w){seg_list <- c()}
     )
     return(seg_list)
-  },mc.cores = 16
+  },mc.cores = n_cores
   )
   return(segment_list)
 }
@@ -72,7 +85,16 @@ emotion_sentence_analyse <- function(sentence, emotion_dictionary){
   if(length(seg_list)>1){
     seg_list <- seg_list[seg_list %in% emotion_dict$word]
   }
-  result_list <- mclapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dictionary)}, mc.cores = 12)
+  if(length(seg_list)==0){
+    cat("没有匹配到情感词汇\n")
+    return(NULL)
+  }
+  if(.Platform$OS.type=="windows"){
+    n_cores = 1
+  }else{
+    n_cores = 16
+  }
+  result_list <- mclapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dictionary)}, mc.cores = n_cores)
   result_list <- do.call(rbind, result_list)
   result_list <- emotion_classify(result_list)
   result_list <- data.frame("word" = seg_list, result_list)
@@ -171,8 +193,12 @@ emotion_sign <- function(result_line){
 # 数据集标记情感---------------------------------------
 
 emotion_analysed_sign <- function(data_analysed){
-  n_core = 16
-  result_list <- mclapply(1:nrow(data_analysed), function(i){emotion_sign(data_analysed[i,])}, mc.cores = n_core)
+  if(.Platform$OS.type=="windows"){
+    n_cores = 1
+  }else{
+    n_cores = 16
+  }
+  result_list <- mclapply(1:nrow(data_analysed), function(i){emotion_sign(data_analysed[i,])}, mc.cores = n_cores)
   result_table <- do.call(rbind, result_list)
   data_analysed <- data.frame(data_analysed, "emotion" = result_table)
   return(data_analysed)
@@ -181,6 +207,11 @@ emotion_analysed_sign <- function(data_analysed){
 # 输入数据框处理函数----------------------------
 
 emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_progress = TRUE){
+  if(.Platform$OS.type=="windows"){
+    n_cores = 1
+  }else{
+    n_cores = 16
+  }
   if(show_progress){
     cat("------------------------------------------\n")
     cat("开始分词：\n")
@@ -195,7 +226,7 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
   }
   stat_list <- mclapply(1:length(segment_list), function(i){
     emotion_sentence_stat(segment_list[[i]],emotion_dict)},
-    mc.cores = 16)
+    mc.cores = n_cores)
   if(show_progress){
     cat("情感分析完成，用时：", Sys.time()-time_temp, "\n", sep = "")
     cat("------------------------------------------\n")
@@ -251,10 +282,10 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
 # 分析过程------------------------------------------
 
 # data_raw = as.data.frame(articles1)
-time_temp <- Sys.time()
-result_emotion <- emotion_analyse(articles1[1:10,], "content", emotion_dict)
-cat("总计用时:", Sys.time() - time_temp, sep = "")
-rm(time_temp)
+# time_temp <- Sys.time()
+# result_emotion <- emotion_analyse(articles1[1:10,], "content", emotion_dict)
+# cat("总计用时:", Sys.time() - time_temp, sep = "")
+# rm(time_temp)
 # save(result_emotion_analyse_all_10_21, file = "/home/jeffmxh/result_emotion_all_10_21.RData")
 # result_all$raw_data <- rbind(result_all$raw_data, result_emotion$raw_data)
 # result_all$stat_result$stat_sum <- result_all$stat_result$stat_sum + result_emotion$stat_result$stat_sum
