@@ -9,10 +9,13 @@ library(plotly)
 
 # 设置核心数------------------------------------
 
-if(.Platform$OS.type=="windows"){
-  n_cores = 1
-}else{
-  n_cores = 16
+get_cores <- function(){
+  if(.Platform$OS.type=="windows"){
+    n_cores = 1
+  }else{
+    n_cores = 16
+  }
+  return(n_cores)
 }
 
 # 加载情感词典----------------------------------
@@ -34,11 +37,8 @@ emotion_load_dict <- function(filepath)
 # 对评论进行分词处理---------------------------
 
 emotion_text_segmenter <- function(data_emotion, column_deal){
-  if(.Platform$OS.type=="windows"){
-    n_cores = 1
-  }else{
-    n_cores = 16
-  }
+  n_cores <- get_cores()
+  data_emotion <- as.data.frame(data_emotion)
   target_text <- data_emotion[, column_deal]
   cc <- worker()
   segment_list <- mclapply(1:length(target_text), function(i){
@@ -89,11 +89,7 @@ emotion_sentence_analyse <- function(sentence, emotion_dictionary){
     cat("没有匹配到情感词汇\n")
     return(NULL)
   }
-  if(.Platform$OS.type=="windows"){
-    n_cores = 1
-  }else{
-    n_cores = 16
-  }
+  n_cores <- get_cores()
   result_list <- mclapply(1:length(seg_list), function(i){emotion_word_classify(seg_list[i], emotion_dictionary)}, mc.cores = n_cores)
   result_list <- do.call(rbind, result_list)
   result_list <- emotion_classify(result_list)
@@ -193,11 +189,7 @@ emotion_sign <- function(result_line){
 # 数据集标记情感---------------------------------------
 
 emotion_analysed_sign <- function(data_analysed){
-  if(.Platform$OS.type=="windows"){
-    n_cores = 1
-  }else{
-    n_cores = 16
-  }
+  n_cores <- get_cores()
   result_list <- mclapply(1:nrow(data_analysed), function(i){emotion_sign(data_analysed[i,])}, mc.cores = n_cores)
   result_table <- do.call(rbind, result_list)
   data_analysed <- data.frame(data_analysed, "emotion" = result_table)
@@ -207,11 +199,7 @@ emotion_analysed_sign <- function(data_analysed){
 # 输入数据框处理函数----------------------------
 
 emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_progress = TRUE){
-  if(.Platform$OS.type=="windows"){
-    n_cores = 1
-  }else{
-    n_cores = 16
-  }
+  n_cores <- get_cores()
   if(show_progress){
     cat("------------------------------------------\n")
     cat("开始分词：\n")
@@ -292,31 +280,32 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
 # write.table(result_all$raw_data, file = "/home/jeffmxh/emotion_result_all.txt", row.names = FALSE, sep = "\t")
 # rm(result_emotion)
 # 画图显示结果--------------------------------------
-# emotion_plot_detail <- function(result_list){
-#   plot_data_detail <- data.frame("class" = c(rep("乐", 2), rep("好", 5), rep("怒", 1), rep("哀", 4),
-#                                              rep("惧", 3), rep("恶", 5), rep("惊", 1)),
-#                                  result_list$stat_result[1:21,])
-#   p = ggplot(plot_data_detail, aes(x = type,y = stat_sum, fill = class))
-#   p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感详细统计")
-#   p = p + geom_vline(xintercept = c(2.5, 7.5, 8.5, 12.5, 15.5, 20.5), color = "red")
-#   p = p + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
-#             plot.title = element_text(colour = "black", face = "bold", size = 22, vjust = 1),
-#             plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
-#             legend.position = "none")
-#   p_ly = ggplotly(p, tooltip = c("fill", "x", "y"))
-#   return(p_ly)
-# }
-# 
-# emotion_plot_class <- function(result_list){
-#   q = ggplot(result_list$stat_result[23:29,], aes(x = type,y = stat_sum, fill = type))
-#   q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感大类统计")
-#   q = q + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
-#             plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1),
-#             plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
-#             legend.position = "none")
-#   q_ly = ggplotly(q)
-#   return(q_ly)
-# }
+
+emotion_plot_detail <- function(result_list){
+  plot_data_detail <- data.frame("class" = c(rep("乐", 2), rep("好", 5), rep("怒", 1), rep("哀", 4),
+                                             rep("惧", 3), rep("恶", 5), rep("惊", 1)),
+                                 result_list$stat_result[1:21,])
+  p = ggplot(plot_data_detail, aes(x = type,y = stat_sum, fill = class))
+  p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感详细统计")
+  p = p + geom_vline(xintercept = c(2.5, 7.5, 8.5, 12.5, 15.5, 20.5), color = "red")
+  p = p + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
+            plot.title = element_text(colour = "black", face = "bold", size = 22, vjust = 1),
+            plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
+            legend.position = "none")
+  p_ly = ggplotly(p, tooltip = c("fill", "x", "y"))
+  return(p_ly)
+}
+
+emotion_plot_class <- function(result_list){
+  q = ggplot(result_list$stat_result[23:29,], aes(x = type,y = stat_sum, fill = type))
+  q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感大类统计")
+  q = q + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
+            plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1),
+            plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
+            legend.position = "none")
+  q_ly = ggplotly(q)
+  return(q_ly)
+}
 # ggsave(file = "/home/jeffmxh/情感详细统计.png", plot=p, width = 30, height = 20, units = "cm")
 # ggsave(file = "/home/jeffmxh/情感大类统计.png", plot=q, width = 30, height = 20, units = "cm")
 # rm(p,q)
