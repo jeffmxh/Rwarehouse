@@ -50,7 +50,7 @@ ssave_txt <- function(data_frame, file_path){
 # 用于保存excel, data.frame -> excel-------------------------
 
 ssave_excel <- function(data_to_save, file_name){
-  if((!is.data.frame(data_to_save))||(nrow(data_to_save)==0)){
+  if((!is.data.frame(data_to_save))|(nrow(data_to_save)==0)){
     cat("Input data error!\n")
   }else if(!require(openxlsx, quietly = TRUE)){
     cat("Please install package 'openxlsx' first!\n")
@@ -66,7 +66,7 @@ ssave_excel <- function(data_to_save, file_name){
 # 用于批量保存excel, list -> excel----------------------------
 
 ssave_multi_excel <- function(data_list, file_name){
-  if((!is.list(data_list))||(length(data_list)==0)){
+  if((!is.list(data_list))|(length(data_list)==0)){
     cat("Input data error!\n")
   }else if(!require(openxlsx, quietly = TRUE)){
     cat("Please install package 'openxlsx' first!\n")
