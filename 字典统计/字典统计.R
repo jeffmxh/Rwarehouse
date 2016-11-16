@@ -12,16 +12,22 @@
 # find_dict_word(data1, "content", dict_vec, TRUE)
 ##################################
 #主函数
-find_dict_word <- function(data, colname, dict = dict_vec, dupli_bool = TRUE){
-  stat = data.frame("keyword" = dict, freq = rep(0, length(dict)))
-  stat$keyword = as.character(stat$keyword)
+
+find_dict_word <- function(data, colname, dict, dupli_bool = TRUE){
   colnames(data)[colnames(data)==colname] = "target_word"
   if(dupli_bool==TRUE){
-    stat[,2] = apply(stat,1,function(x){x[2]=data %>% dplyr::filter(grepl(x[1], target_word)) %>% nrow()})
+    result_list <- sapply(1:length(dict), function(i){ 
+      data %>% 
+        filter(grepl(target_word, pattern = dict[i])) %>%
+        nrow()
+    })
   }else{
     all_text = paste0(data$target_word, collapse = ",")
-    stat[,2] = apply(stat,1,function(x){length(stringr::str_match_all(all_text, x[1])[[1]])})
+    result_list <- sapply(1:length(dict), function(i){
+      length(stringr::str_match_all(all_text, dict[i])[[1]])
+    })
   }
+  stat <-  data.frame("keyword" = dict, "freq" = result_list, stringsAsFactors = FALSE)
   stat = stat %>% 
     dplyr::filter(freq>0) %>%
     dplyr::arrange(desc(freq))
