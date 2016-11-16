@@ -6,12 +6,12 @@ library(lda)
 
 # load data---------------------------------------------
 
-instance_noodles <- read_excel("/home/jeffmxh/康师傅私房牛肉_康师傅私房牛肉用户微博转发_retweeted_content_output_content_rela.xlsx", sheet = 4)
+instance_noodles <- read_excel("/home/jeffmxh/noodles_weibo.xlsx")
 cat("Data loaded!\n")
 
 # define data to deal-----------------------------------
 
-target_data <- instance_noodles[,-1]
+target_data <- instance_noodles
 target_column <- "content"
 
 # load the stop_words list------------------------------
@@ -44,6 +44,10 @@ emotion_text_segmenter <- function(data_emotion, column_deal, stop_word_path = "
   return(segment_list)
 }
 
+nchar_bool <- function(str){
+  return(nchar(str)>1)
+}
+
 # Remove useless pharases---------------------------
 
 text_vec <- target_data[,target_column]
@@ -59,6 +63,7 @@ cat("Useless pharases removed!\n")
 # Generate documents for lda model---------------------
 
 doc.list <- emotion_text_segmenter(target_data, target_column)
+doc.list <- lapply(doc.list, function(vec){vec[nchar_bool(vec)]})
 term.table <- table(unlist(doc.list))
 term.table <- sort(term.table, decreasing = TRUE)
 del <- names(term.table) %in% stop_words | term.table < 5
