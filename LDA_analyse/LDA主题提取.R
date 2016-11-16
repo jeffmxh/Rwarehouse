@@ -5,12 +5,14 @@ library(parallel)
 library(topicmodels)
 library(igraph)
 library(Cairo)
+library(parallel)
 
 # 参数修改-----------------------------
 
-target_data <- content_snow
-target_column <- "after_text"
-project_name <- "try"
+load("/home/jeffmxh/wechat_articles1.RData")
+target_data <- articles1
+target_column <- "content"
+project_name <- "wechat_articles"
 
 # 修改工作目录--------------------------
 
@@ -18,12 +20,15 @@ origin_wd <- getwd()
 project_path <- paste0("/home/jeffmxh/LDA_result/", project_name)
 dir.create(project_path)
 setwd(project_path)
+stop_words <- readLines("/home/jeffmxh/stopwords_utf8.txt", encoding = "UTF-8")
 
 # load io_module-----------------
+
 source("/home/jeffmxh/r projects/txt_excel_io.R")
 
 # connect to spark---------------
-source('/home/jeffmxh/r projects/spark_connect.R')
+
+# source('/home/jeffmxh/r projects/spark_connect.R')
 
 # 对数据框特定列分词，返回list--------------------------
 
@@ -72,7 +77,7 @@ make_dtm <- function(word_corpus,
 
 # 进行抽样---------------------------------------------
 
-smp<-function(cross=fold_num, n, seed)
+smp <- function(cross=fold_num, n, seed)
 {
   set.seed(seed)
   dd=list()
@@ -98,11 +103,11 @@ selectK_par <- function(dtm,kv = kv_num, SEED = 2016, cross = fold_num, sp){ # c
       # Gibbs = LDA(dtm[tr, ], k = k, control = list(seed = SEED)),
       # VEM_fixed = LDA(dtm[tr,], k = k, control = list(estimate.alpha = FALSE, seed = SEED)),
       
-      Gibbs = topicmodels::CTM(dtm[tr, ], k = k,
-                               control = list(seed = SEED, var = list(tol = 10^-4), em = list(tol = 10^-3)))
+      # Gibbs = topicmodels::CTM(dtm[tr, ], k = k,
+      #                          control = list(seed = SEED, var = list(tol = 10^-4), em = list(tol = 10^-3)))
       
-      # Gibbs = LDA(dtm[tr,], k = k, method = "Gibbs",
-      #             control = list(seed = SEED, burnin = 1000,thin = 100, iter = 1000))
+      Gibbs = LDA(dtm[tr,], k = k, method = "Gibbs",
+                  control = list(seed = SEED, burnin = 1000,thin = 100, iter = 1000))
       per <- perplexity(Gibbs, newdata = dtm[te,])
       loglik <- logLik(Gibbs, newdata = dtm[te,])
       return(c(per, loglik))
@@ -144,6 +149,9 @@ make_dtm_for_LDA <- function(data_to_deal, column_to_deal){
 fold_num <- 10
 kv_num <- c(5, 10*c(1:5), 100)
 
+for(i in 1:nrow(target_data)){
+  target_data[i, target_column] <- gsub("[a-zA-Z0-9:/]", "", target_data[i, target_column])
+}
 system.time(dtm_result <- make_dtm_for_LDA(target_data, target_column))
 
 dtm_matrix <- dtm_result$dtm_matrix
@@ -159,48 +167,58 @@ system.time((ldaK <- selectK_par(dtm = dtm_matrix, kv = kv_num, SEED = 2016, cro
 m_per=apply(ldaK[[1]],1,mean)
 m_log=apply(ldaK[[2]],1,mean)
 
-df = ldaK[[1]]  # perplexity matrix
-matplot(kv_num, df, type = c("b"), xlab = "Number of topics",
+df_1 = ldaK[[1]]  # perplexity matrix
+CairoPNG("Perplexity.png", width=5, height=5,  units="in", res=700)
+matplot(kv_num, df_1, type = c("b"), xlab = "Number of topics",
         ylab = "Perplexity", pch=1:5, col = 1, main = '')
-legend("bottomright", legend = paste("fold", 1:5), col=1, pch=1:5)
+dev.off()
+
+df_2 = ldaK[[2]]  # perplexity matrix
+CairoPNG("likelyhood.png", width=5, height=5,  units="in", res=700)
+matplot(kv_num, df_2, type = c("b"), xlab = "Number of topics",
+        ylab = "Likelyhood", pch=1:5, col = 1, main = '')
+dev.off()
 
 # 正式进行模型拟合------------------------------------
 
-Gibbs <- topicmodels::CTM(dtm_matrix, k = 50, control = list(seed = 2016, var = list(tol = 10^-4), em = list(tol = 10^-3)))
-Gibbs <- topicmodels::LDA(dtm_matrix, k = 50, method = "Gibbs",control = list(seed = 2015, burnin = 1000,thin = 100, iter = 1000))
-terms(Gibbs, 10)
+# Gibbs <- topicmodels::CTM(dtm_matrix, k = 10, control = list(seed = 2016, var = list(tol = 10^-4), em = list(tol = 10^-3)))
+# Gibbs <- topicmodels::LDA(dtm_matrix, k = 10, method = "Gibbs",control = list(seed = 2015, burnin = 1000,thin = 100, iter = 1000))
+# topicmodels::terms(Gibbs, 10)
 
 # 绘图可视化------------------------------------------
 
-terms_10 <- terms(Gibbs, 10)
-tfs <- as.data.frame(terms_10, stringsAsFactors = F)
-adjacent_list <- lapply(1:10, function(i) embed(tfs[,i], 2)[, 2:1]) 
-edgelist <- as.data.frame(do.call(rbind, adjacent_list), stringsAsFactors = FALSE)
-topic <- unlist(lapply(1:10, function(i) rep(i, 9)))
-edgelist$topic <- topic
-g <- graph.data.frame(edgelist,directed = T)
-l <- layout.fruchterman.reingold(g)
-edge.color <- "black"
-nodesize <- centralization.degree(g)$res 
-V(g)$size <- log( centralization.degree(g)$res )
+# plot_terms <- function(LDA_result, nterms) {
+#   terms_10 <- terms(Gibbs, nterms)
+#   tfs <- as.data.frame(terms_10, stringsAsFactors = F)
+#   adjacent_list <- lapply(1:10, function(i) embed(tfs[,i], 2)[, 2:1]) 
+#   edgelist <- as.data.frame(do.call(rbind, adjacent_list), stringsAsFactors = FALSE)
+#   topic <- unlist(lapply(1:10, function(i) rep(i, 9)))
+#   edgelist$topic <- topic
+#   g <- graph.data.frame(edgelist,directed = T)
+#   l <- layout.fruchterman.reingold(g)
+#   edge.color <- "black"
+#   nodesize <- centralization.degree(g)$res 
+#   V(g)$size <- log( centralization.degree(g)$res )
+#   nodeLabel <- V(g)$name
+#   E(g)$color <-  unlist(lapply(sample(colors()[26:137], 10), function(i) rep(i, 9)))
+#   return(g)
+# }
 
-nodeLabel <- V(g)$name
-E(g)$color <-  unlist(lapply(sample(colors()[26:137], 10), function(i) rep(i, 9)))
-
+# g <- plot_terms(LDA_result = Gibbs, nterms = 10)
 # 保存图片格式
-CairoPNG("net_graph.png", width=5, height=5,  units="in", res=700)
-plot(g, vertex.label= nodeLabel,  edge.curved = TRUE, 
-     vertex.label.cex = 0.8,  edge.arrow.size = 0.15, layout = l )
-dev.off()
-
-# generate final result------------------------------------------------
-
-topic1 <- topics(Gibbs, 1)
-table(topic1)
-
-terms <- terms(Gibbs, 10)
-terms
-
+# CairoPNG("net_graph.png", width=5, height=5,  units="in", res=700)
+# plot(g, vertex.label= nodeLabel,  edge.curved = TRUE, 
+#      vertex.label.cex = 0.8,  edge.arrow.size = 0.15, layout = l )
+# dev.off()
+# 
+# # generate final result------------------------------------------------
+# 
+# topic1 <- topics(Gibbs, 1)
+# table(topic1)
+# 
+# terms <- terms(Gibbs, 10)
+# terms
+# 
 setwd(origin_wd)
-
-rm(origin_wd, fold_num, kv_num, sp, ldaK, m_per, m_log, df, Gibbs, terms_10, tfs, adjacent_list, edgelist, topic, g, l, edge.color, nodesize, nodeLabel)
+# 
+# rm(origin_wd, fold_num, kv_num, sp, ldaK, m_per, m_log, df, Gibbs, terms_10, tfs, adjacent_list, edgelist, topic, g, l, edge.color, nodesize, nodeLabel)
