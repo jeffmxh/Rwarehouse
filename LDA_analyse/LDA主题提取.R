@@ -1,18 +1,38 @@
-library(tm)
-library(dplyr)
-library(jiebaR)
-library(parallel)
-library(topicmodels)
-library(igraph)
-library(Cairo)
-library(parallel)
+require(tm, quietly = TRUE)
+require(dplyr, quietly = TRUE)
+require(jiebaR, quietly = TRUE)
+require(parallel, quietly = TRUE)
+require(topicmodels, quietly = TRUE)
+# require(igraph, quietly = TRUE)
+require(Cairo, quietly = TRUE)
+library(RMySQL, quietly = TRUE)
+
+####################################################
+# 根据SQL语言查询数据库-----------------------------
+
+get_db_data <- function(dbname="dp_relation",sql.str){
+  db.con <- dbConnect(MySQL(),  
+                      user = "shiny",
+                      password = "shiny@tbs2016",
+                      dbname = dbname,
+                      host = "127.0.0.1")
+  dbSendQuery(db.con, 'SET NAMES utf8')
+  res <- dbSendQuery(db.con, sql.str)
+  result <- dbFetch(res, n = -1)
+  dbClearResult(res)
+  dbDisconnect(db.con)
+  return(result)
+}
 
 # 参数修改-----------------------------
 
+start_time <- Sys.time()
+
 load("/home/jeffmxh/wechat_articles1.RData")
-target_data <- articles1
+target_data <- articles1[1:200,]
+# target_data <- get_db_data("dp_relation", "SELECT * FROM weibo_raw_data WHERE keyword_id='10_1'")
 target_column <- "content"
-project_name <- "wechat_articles"
+project_name <- "try_samp"
 
 # 修改工作目录--------------------------
 
@@ -122,18 +142,23 @@ selectK_par <- function(dtm,kv = kv_num, SEED = 2016, cross = fold_num, sp){ # c
   return(list(perplex = per_lda, loglik = log_lda))
 }
 
+# filter terms whose length is less than 2-----------------------
+
+nchar_bool <- function(str){
+  return(nchar(str)>1)
+}
 
 # generate dtm matrix--------------------------------------------
 
 make_dtm_for_LDA <- function(data_to_deal, column_to_deal){
   # 分词----
   all_seg_list <- emotion_text_segmenter(data_to_deal, column_deal = column_to_deal)
-  
+  all_seg_list <- lapply(all_seg_list, function(vec){vec[nchar_bool(vec)]})
   corpus <- Corpus(VectorSource(all_seg_list))
   dtm_matrix <- make_dtm(corpus, stopwords_list = stop_words)
   # filter empty rows----
   row_sum <- apply(as.matrix(dtm_matrix), 1, sum)
-  delete_index <- as.numeric(names(row_sum[row_sum==0]))
+  delete_index <- as.numeric(names(row_sum[row_sum<=5]))
   delete_index <- sort(delete_index, decreasing = TRUE)
   data_to_deal <- data_to_deal[-delete_index, ]
   for(i in delete_index){
@@ -152,7 +177,10 @@ kv_num <- c(5, 10*c(1:5), 100)
 for(i in 1:nrow(target_data)){
   target_data[i, target_column] <- gsub("[a-zA-Z0-9:/]", "", target_data[i, target_column])
 }
-system.time(dtm_result <- make_dtm_for_LDA(target_data, target_column))
+cat("去除无用词完毕!\n")
+
+dtm_result <- make_dtm_for_LDA(target_data, target_column)
+cat("DTM矩阵生成完毕!\n")
 
 dtm_matrix <- dtm_result$dtm_matrix
 target_data <- dtm_result$raw_data
@@ -160,7 +188,9 @@ rm(dtm_result)
 
 sp <- smp(n = dtm_matrix$nrow, seed = 2016)
 
-system.time((ldaK <- selectK_par(dtm = dtm_matrix, kv = kv_num, SEED = 2016, cross = fold_num, sp = sp)))
+cat("开始并行拟合模型!\n")
+ldaK <- selectK_par(dtm = dtm_matrix, kv = kv_num, SEED = 2016, cross = fold_num, sp = sp)
+cat("模型拟合完毕!\n")
 
 # plot the perplexity-------------------------------
 
@@ -178,11 +208,12 @@ CairoPNG("likelyhood.png", width=5, height=5,  units="in", res=700)
 matplot(kv_num, df_2, type = c("b"), xlab = "Number of topics",
         ylab = "Likelyhood", pch=1:5, col = 1, main = '')
 dev.off()
+cat("图片保存完毕!\n")
 
 # 正式进行模型拟合------------------------------------
 
 # Gibbs <- topicmodels::CTM(dtm_matrix, k = 10, control = list(seed = 2016, var = list(tol = 10^-4), em = list(tol = 10^-3)))
-# Gibbs <- topicmodels::LDA(dtm_matrix, k = 10, method = "Gibbs",control = list(seed = 2015, burnin = 1000,thin = 100, iter = 1000))
+# Gibbs <- topicmodels::LDA(dtm_matrix, k = 20, method = "Gibbs",control = list(seed = 2015, burnin = 1000,thin = 100, iter = 1000))
 # topicmodels::terms(Gibbs, 10)
 
 # 绘图可视化------------------------------------------
@@ -219,6 +250,9 @@ dev.off()
 # terms <- terms(Gibbs, 10)
 # terms
 # 
+
+save(project_name, target_data, target_column, file = "/home/jeffmxh/LDA_temp_vis.RData")
 setwd(origin_wd)
+cat("总计用时：", Sys.time()-start_time, "\n")
 # 
 # rm(origin_wd, fold_num, kv_num, sp, ldaK, m_per, m_log, df, Gibbs, terms_10, tfs, adjacent_list, edgelist, topic, g, l, edge.color, nodesize, nodeLabel)
