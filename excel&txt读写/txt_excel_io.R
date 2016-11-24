@@ -1,5 +1,6 @@
-library(readxl)
-library(openxlsx)
+# dependencies-----------------------------------------------
+# +--readxl
+# +--openxlsx
 
 # 用于批量读取一个文件夹下全部txt, 返回一个list--------------
 
@@ -28,7 +29,9 @@ sopen_excel <- function(dirpath, sheet_index = 1){
       cat("Please install package 'readxl' first!\n")
     }else{
       file_path <- paste0(dirpath, "/",file_name)
-      file_handler <- lapply(1:length(file_path), function(i){read_excel(file_path[i], sheet = sheet_index)})
+      file_handler <- lapply(1:length(file_path), function(i){
+        read_excel(file_path[i], sheet = sheet_index)
+        })
       names(file_handler) <- gsub(".xlsx", "", file_name)
       return(file_handler)
     }
@@ -42,7 +45,11 @@ ssave_txt <- function(data_frame, file_path){
     cat("Input data error, no data found!\n")
   }else{
     data_frame = as.data.frame(data_frame)
-    write.table(data_frame, file = file_path, sep = "\t", row.names = FALSE, fileEncoding = "UTF-8")
+    write.table(data_frame,
+                file = file_path,
+                sep = "\t", 
+                row.names = FALSE, 
+                fileEncoding = "UTF-8")
     cat("file saved successfully!\n")
   }
 }
@@ -71,6 +78,9 @@ ssave_multi_excel <- function(data_list, file_name){
   }else if(!require(openxlsx, quietly = TRUE)){
     cat("Please install package 'openxlsx' first!\n")
   }else{
+    if(is.null(names(data_list))){
+      names(data_list) <- paste0("sheet", 1:length(data_list))
+    }
     wb <- createWorkbook()
     for(i in 1:length(data_list)){
       addWorksheet(wb, sheetName = names(data_list)[i])
