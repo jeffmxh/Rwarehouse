@@ -11,9 +11,9 @@ library(plotly)
 
 get_cores <- function(){
   if(.Platform$OS.type=="windows"){
-    n_cores = 1
+    n_cores <- 1
   }else{
-    n_cores = 16
+    n_cores <- 16
   }
   return(n_cores)
 }
@@ -30,7 +30,7 @@ emotion_load_dict <- function(filepath)
   emotion_dict <- emotion_dict %>% 
     dplyr::filter(meaning_index==1) %>%
     dplyr::filter(polar_1 %in% c(0,1,2))
-  emotion_dict[emotion_dict$polar_1==2,7]=-1
+  emotion_dict[emotion_dict$polar_1==2,7] <- -1
   return(emotion_dict)
 }
 
@@ -270,10 +270,10 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
 # 分析过程------------------------------------------
 
 # data_raw = as.data.frame(articles1)
-# time_temp <- Sys.time()
-# result_emotion <- emotion_analyse(articles1[1:10,], "content", emotion_dict)
-# cat("总计用时:", Sys.time() - time_temp, sep = "")
-# rm(time_temp)
+time_temp <- Sys.time()
+result_wahaha <- emotion_analyse(content_wahaha, "after_text", emotion_dict)
+cat("总计用时:", Sys.time() - time_temp, sep = "")
+rm(time_temp)
 # save(result_emotion_analyse_all_10_21, file = "/home/jeffmxh/result_emotion_all_10_21.RData")
 # result_all$raw_data <- rbind(result_all$raw_data, result_emotion$raw_data)
 # result_all$stat_result$stat_sum <- result_all$stat_result$stat_sum + result_emotion$stat_result$stat_sum
@@ -281,12 +281,12 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
 # rm(result_emotion)
 # 画图显示结果--------------------------------------
 
-emotion_plot_detail <- function(result_list){
+emotion_plot_detail <- function(result_list, plot_title = "情感详细统计"){
   plot_data_detail <- data.frame("class" = c(rep("乐", 2), rep("好", 5), rep("怒", 1), rep("哀", 4),
                                              rep("惧", 3), rep("恶", 5), rep("惊", 1)),
                                  result_list$stat_result[1:21,])
   p = ggplot(plot_data_detail, aes(x = type,y = stat_sum, fill = class))
-  p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感详细统计")
+  p = p + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle(plot_title)
   p = p + geom_vline(xintercept = c(2.5, 7.5, 8.5, 12.5, 15.5, 20.5), color = "red")
   p = p + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
             plot.title = element_text(colour = "black", face = "bold", size = 22, vjust = 1),
@@ -296,9 +296,9 @@ emotion_plot_detail <- function(result_list){
   return(p_ly)
 }
 
-emotion_plot_class <- function(result_list){
+emotion_plot_class <- function(result_list, plot_title = "情感大类统计"){
   q = ggplot(result_list$stat_result[23:29,], aes(x = type,y = stat_sum, fill = type))
-  q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle("情感大类统计")
+  q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle(plot_title)
   q = q + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
             plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1),
             plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),

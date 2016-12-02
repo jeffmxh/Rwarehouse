@@ -29,6 +29,7 @@ p = p + theme(#plot.background = element_rect(colour = "black", size = 1, linety
               text = element_text(family = "STHeiti"))
               # legend.position = "none")
 p
+p_ly <- ggplotly(p)
 
 plot_data_meizhiyuan <- get_plot_data21(result_meizhiyuan, "美汁源")
 plot_data_yili <- get_plot_data21(result_yili, "伊利")
