@@ -8,58 +8,36 @@ require(LDAvis, quietly = TRUE)
 require(lda, quietly = TRUE)
 require(RMySQL, quietly = TRUE)
 
-# 根据SQL语言查询数据库-----------------------------
-
-get_db_data <- function(dbname="dp_relation",sql.str){
-  db.con <- dbConnect(MySQL(),  
-                      user = "shiny",
-                      password = "shiny@tbs2016",
-                      dbname = dbname,
-                      host = "127.0.0.1")
-  dbSendQuery(db.con, 'SET NAMES utf8')
-  res <- dbSendQuery(db.con, sql.str)
-  result <- dbFetch(res, n = -1)
-  dbClearResult(res)
-  dbDisconnect(db.con)
-  return(result)
-}
-
 # load data---------------------------------------------
+file_index <- as.numeric(Args[6])
+file_handle <- list.files("/home/jeffmxh/data_temp")
+file_name <- file_handle[file_index]
 
-keyword_id <- Args[6]
+file_path <- paste0("/home/jeffmxh/data_temp/", file_name)
+target_data <- read_excel(file_path)
+file_name <- gsub("\\.xlsx", "", file_name)
 
-cat("-----------------------", keyword_id, "-----------------------\n")
+cat("---------------------------", file_name, "---------------------------\n")
 start_time <- Sys.time()
 print(start_time)
 
-query0 <- paste0("SELECT info_source_sheet FROM project_key WHERE keyword_id=\'", keyword_id, "\'")
-info_source_sheet <- get_db_data("dp_relation", query0)
-info_source_sheet <- as.character(info_source_sheet)
-
-query1 <- paste0("SELECT keyword FROM project_key WHERE keyword_id=\'", keyword_id, "\'")
-project_name <- get_db_data("dp_relation", query1)
-project_name <- as.character(project_name)
-
-query2 <- paste0("SELECT * FROM ", info_source_sheet, " WHERE keyword_id=\'", keyword_id, "\'")
-target_data <- get_db_data("dp_relation", query2)
-target_data <- as.data.frame(target_data)
-
-if(grepl(project_name, pattern = "转发")){
-  target_data <- target_data %>%
-    mutate(bind_content = paste(content, retweeted_content, sep = ","))
-  target_column <- "bind_content"
-}else{
-  target_column <- "content"
-}
-
+# if(grepl(file_name, pattern = "转发")){
+#   target_data <- target_data %>%
+#     mutate(bind_content = paste(content, retweeted_content, sep = ","))
+#   target_column <- "bind_content"
+# }else{
+#   target_column <- "content"
+# }
+target_column <- "content"
 cat("Data loaded!\n")
-file_name <- project_name
 K <- floor(sqrt(nrow(target_data))/3)
+# K <- 30
 
 # load the stop_words list------------------------------
 
 source("/home/jeffmxh/r projects/txt_excel_io.R")
 stop_words <- readLines("/home/jeffmxh/stopwords_utf8.txt", encoding = "UTF-8")
+target_data <- as.data.frame(target_data)
 cat("Stop words list loaded!\n")
 
 # 对数据框特定列分词，返回list--------------------------
@@ -72,7 +50,7 @@ emotion_text_segmenter <- function(data_emotion, column_deal, stop_word_path = "
   }
   data_emotion <- as.data.frame(data_emotion)
   target_text <- data_emotion[, column_deal]
-  cc <- worker(stop_word = stop_word_path)
+  cc <- worker(stop_word = stop_word_path, user = "/home/jeffmxh/user_dict.txt", user_weight = "max")
   segment_list <- mclapply(1:length(target_text), function(i){
     seg_list <- tryCatch(
       {
@@ -120,7 +98,6 @@ js_tSNE <- function(phi){jstSNE(phi=phi, maxIter = 1000, preEpoch = 1001)}
 
 text_vec <- target_data[,target_column]
 
-text_vec <- gsub(" ", ",",text_vec)
 text_vec <- gsub("\\[.+?\\]", "", text_vec)
 text_vec <- gsub("\\#.+?\\#", "", text_vec)
 text_vec <- gsub("【.+?】", "", text_vec)
@@ -138,7 +115,7 @@ doc.list <- emotion_text_segmenter(target_data, target_column)
 doc.list <- lapply(doc.list, function(vec){vec[nchar_bool(vec)]})
 term.table <- table(unlist(doc.list))
 term.table <- sort(term.table, decreasing = TRUE)
-del <- term.table < 5
+del <- term.table < 10
 term.table <- term.table[!del]
 vocab <- names(term.table)
 get.terms <- function(x){
@@ -151,17 +128,12 @@ cat("Documents generated!\n")
 
 # Compute some statistics-----------------------------------
 
-# D <- length(documents)
-# W <- length(vocab)  # number of terms in the vocab (14,568)
-doc.length <- sapply(documents, function(x) sum(x[2, ]))  # number of tokens per document [312, 288, 170, 436, 291, ...]
-# N <- sum(doc.length)  # total number of tokens in the data (546,827)
-term.frequency <- as.integer(term.table)  # frequencies of terms in the corpus [8939, 5544, 2411, 2410, 2143,
+doc.length <- sapply(documents, function(x) sum(x[2, ])) 
+term.frequency <- as.integer(term.table) 
 cat("Statistics computed!\n")
 
 # MCMC and model tuning parameters--------------------------
 
-
-G <- 1000
 alpha <- 0.02
 eta <- 0.02
 
@@ -170,14 +142,14 @@ eta <- 0.02
 cat("Start fitting model!\n")
 set.seed(2016)
 fit <- lda.collapsed.gibbs.sampler(documents = documents, 
-                                     K = K, 
-                                     vocab = vocab, 
-                                     num.iterations = G, 
-                                     alpha = alpha, 
-                                     eta = eta, 
-                                     initial = NULL, 
-                                     burnin = 0,
-                                     compute.log.likelihood = TRUE)
+                                   K = K, 
+                                   vocab = vocab, 
+                                   num.iterations = 1000, 
+                                   alpha = alpha, 
+                                   eta = eta, 
+                                   initial = NULL, 
+                                   burnin = 0,
+                                   compute.log.likelihood = TRUE)
 cat("Model fitted!\n")
 topic_vec <- sapply(fit$assignments, assign_topic)
 target_data$assign_title <- topic_vec
@@ -189,18 +161,12 @@ phi <- t(apply(t(fit$topics) + eta, 2, function(x) x/sum(x)))
 
 cl <- makeCluster(16)
 json_tSNE <- createJSON(phi = phi, 
-                   theta = theta, 
-                   doc.length = doc.length, 
-                   vocab = vocab, 
-                   term.frequency = term.frequency,
-                   mds.method = js_tSNE,
-                   cluster = cl)
-# json_jsPCA <- createJSON(phi = phi, 
-#                    theta = theta, 
-#                    doc.length = doc.length, 
-#                    vocab = vocab, 
-#                    term.frequency = term.frequency,
-#                    cluster = cl)
+                        theta = theta, 
+                        doc.length = doc.length, 
+                        vocab = vocab, 
+                        term.frequency = term.frequency,
+                        mds.method = js_tSNE,
+                        cluster = cl)
 
 cat("Json file generated!\n")
 
@@ -208,17 +174,19 @@ stopCluster(cl)
 
 # View result--------------------------------------------------
 
-# json_path_jsPCA <- paste0("/home/jeffmxh/LDA_json_data/R_", file_name, "_jsPCA.json")
-# # save(json_jsPCA, file = json_path_jsPCA)
-# write(json_jsPCA, file = json_path_jsPCA)
-
-json_path_tSNE <- paste0("/home/jeffmxh/LDA_json_data/R_", keyword_id, file_name, ",json")
+json_path_tSNE <- paste0("/home/jeffmxh/LDA_json_data/R_", file_name, ".json")
 write(json_tSNE, file = json_path_tSNE)
 
 excel_path <- paste0("/home/jeffmxh/LDA_excel_data/", file_name, ".xlsx")
 ssave_excel(target_data, excel_path)
 
 print(Sys.time()-start_time)
+# load("/home/jeffmxh/wechat_articles1.RData")
+# target_file_name <- ""
+# target_data <- data_raw
+# target_column <- "content"
+# file_name <- "肯德基圣诞烤鸡按关键词提取"
+
 
 # rm(target_data, target_column, text_vec, doc.list, term.table,
 #    del, vocab, documents, D, W, doc.length, N, term.frequency,

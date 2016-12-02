@@ -5,12 +5,20 @@ require(parallel, quietly = TRUE)
 require(topicmodels, quietly = TRUE)
 # require(igraph, quietly = TRUE)
 require(Cairo, quietly = TRUE)
-library(RMySQL, quietly = TRUE)
 
 ####################################################
 # 根据SQL语言查询数据库-----------------------------
 
+killDbConnections <- function(){
+  if(length(dbListConnections(MySQL()))!=0){
+    all_cons <- dbListConnections(MySQL())
+    for(con in all_cons) dbDisconnect(con)
+  }
+}
+
 get_db_data <- function(dbname="dp_relation",sql.str){
+  require(RMySQL, quietly = TRUE)
+  killDbConnections()
   db.con <- dbConnect(MySQL(),  
                       user = "shiny",
                       password = "shiny@tbs2016",
@@ -28,8 +36,8 @@ get_db_data <- function(dbname="dp_relation",sql.str){
 
 start_time <- Sys.time()
 
-load("/home/jeffmxh/wechat_articles1.RData")
-target_data <- articles1[1:200,]
+# load("/home/jeffmxh/wechat_articles1.RData")
+# target_data <- articles1[1:200,]
 # target_data <- get_db_data("dp_relation", "SELECT * FROM weibo_raw_data WHERE keyword_id='10_1'")
 target_column <- "content"
 project_name <- "try_samp"
@@ -53,6 +61,8 @@ source("/home/jeffmxh/r projects/txt_excel_io.R")
 # 对数据框特定列分词，返回list--------------------------
 
 emotion_text_segmenter <- function(data_emotion, column_deal, stop_word_path = "/home/jeffmxh/stopwords_utf8.txt"){
+  require(jiebaR, quietly = TRUE)
+  require(parallel, quietly = TRUE)
   if(.Platform$OS.type=="windows"){
     n_cores = 1
   }else{
@@ -81,6 +91,7 @@ make_dtm <- function(word_corpus,
                      min_word_len = 2, min_repeat = 1, 
                      rmNum = TRUE, rmPun = FALSE, stopwords_list = stopwords.list,
                      wt = weightTf, encod = "UTF-8"){
+  require(tm, quietly = TRUE)
   return_dtm <- DocumentTermMatrix(word_corpus,
                                    control = list(
                                      wordLengths=c(min_word_len, Inf), # to allow long words
@@ -110,23 +121,25 @@ smp <- function(cross=fold_num, n, seed)
 # find the number of topics --------------------------------
 
 selectK_par <- function(dtm,kv = kv_num, SEED = 2016, cross = fold_num, sp){ # change 60 to 15
+  require(parallel, quietly = TRUE)
+  require(topicmodels, quietly = TRUE)
   if(.Platform$OS.type=="windows"){
-    max_cores = 1
+    max_cores <- 1
   }else{
-    max_cores = floor(detectCores(logical = TRUE) * 0.75)
+    max_cores <- floor(detectCores(logical = TRUE) * 0.75)
   }
   result_list <- mclapply(kv, function(k){
     result_list_k <- mclapply(1:3, function(i){
       te <- sp[[i]]
       tr <- setdiff(1:dtm$nrow, te)
       
-      # Gibbs = LDA(dtm[tr, ], k = k, control = list(seed = SEED)),
-      # VEM_fixed = LDA(dtm[tr,], k = k, control = list(estimate.alpha = FALSE, seed = SEED)),
+      # Gibbs <- LDA(dtm[tr, ], k = k, control = list(seed = SEED)),
+      # VEM_fixed <- LDA(dtm[tr,], k = k, control = list(estimate.alpha = FALSE, seed = SEED)),
       
-      # Gibbs = topicmodels::CTM(dtm[tr, ], k = k,
+      # Gibbs <- topicmodels::CTM(dtm[tr, ], k = k,
       #                          control = list(seed = SEED, var = list(tol = 10^-4), em = list(tol = 10^-3)))
       
-      Gibbs = LDA(dtm[tr,], k = k, method = "Gibbs",
+      Gibbs <- LDA(dtm[tr,], k = k, method = "Gibbs",
                   control = list(seed = SEED, burnin = 1000,thin = 100, iter = 1000))
       per <- perplexity(Gibbs, newdata = dtm[te,])
       loglik <- logLik(Gibbs, newdata = dtm[te,])
@@ -194,17 +207,17 @@ cat("模型拟合完毕!\n")
 
 # plot the perplexity-------------------------------
 
-m_per=apply(ldaK[[1]],1,mean)
-m_log=apply(ldaK[[2]],1,mean)
+m_per <- apply(ldaK[[1]],1,mean)
+m_log <- apply(ldaK[[2]],1,mean)
 
-df_1 = ldaK[[1]]  # perplexity matrix
-CairoPNG("Perplexity.png", width=5, height=5,  units="in", res=700)
+df_1 <-  ldaK[[1]]  # perplexity matrix
+CairoPNG("Perplexity.png", width=5, height=5, units="in", res=700)
 matplot(kv_num, df_1, type = c("b"), xlab = "Number of topics",
-        ylab = "Perplexity", pch=1:5, col = 1, main = '')
+        ylab = "Perplexity", pch=1:5, col = 1, main = "")
 dev.off()
 
 df_2 = ldaK[[2]]  # perplexity matrix
-CairoPNG("likelyhood.png", width=5, height=5,  units="in", res=700)
+CairoPNG("likelyhood.png", width=5, height=5, units="in", res=700)
 matplot(kv_num, df_2, type = c("b"), xlab = "Number of topics",
         ylab = "Likelyhood", pch=1:5, col = 1, main = '')
 dev.off()
