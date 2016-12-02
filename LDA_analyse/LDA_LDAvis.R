@@ -10,19 +10,7 @@ require(RMySQL, quietly = TRUE)
 
 # 根据SQL语言查询数据库-----------------------------
 
-get_db_data <- function(dbname="dp_relation",sql.str){
-  db.con <- dbConnect(MySQL(),  
-                      user = "shiny",
-                      password = "shiny@tbs2016",
-                      dbname = dbname,
-                      host = "127.0.0.1")
-  dbSendQuery(db.con, 'SET NAMES utf8')
-  res <- dbSendQuery(db.con, sql.str)
-  result <- dbFetch(res, n = -1)
-  dbClearResult(res)
-  dbDisconnect(db.con)
-  return(result)
-}
+source('/home/jeffmxh/r projects/mysql_io.R')
 
 # load data---------------------------------------------
 
@@ -33,15 +21,15 @@ start_time <- Sys.time()
 print(start_time)
 
 query0 <- paste0("SELECT info_source_sheet FROM project_key WHERE keyword_id=\'", keyword_id, "\'")
-info_source_sheet <- get_db_data("dp_relation", query0)
+info_source_sheet <- get_db_data(query0)
 info_source_sheet <- as.character(info_source_sheet)
 
 query1 <- paste0("SELECT keyword FROM project_key WHERE keyword_id=\'", keyword_id, "\'")
-project_name <- get_db_data("dp_relation", query1)
+project_name <- get_db_data(query1)
 project_name <- as.character(project_name)
 
 query2 <- paste0("SELECT * FROM ", info_source_sheet, " WHERE keyword_id=\'", keyword_id, "\'")
-target_data <- get_db_data("dp_relation", query2)
+target_data <- get_db_data(query2)
 target_data <- as.data.frame(target_data)
 
 if(grepl(project_name, pattern = "转发")){

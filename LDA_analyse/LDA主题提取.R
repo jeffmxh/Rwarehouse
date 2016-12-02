@@ -16,21 +16,7 @@ killDbConnections <- function(){
   }
 }
 
-get_db_data <- function(dbname="dp_relation",sql.str){
-  require(RMySQL, quietly = TRUE)
-  killDbConnections()
-  db.con <- dbConnect(MySQL(),  
-                      user = "shiny",
-                      password = "shiny@tbs2016",
-                      dbname = dbname,
-                      host = "127.0.0.1")
-  dbSendQuery(db.con, 'SET NAMES utf8')
-  res <- dbSendQuery(db.con, sql.str)
-  result <- dbFetch(res, n = -1)
-  dbClearResult(res)
-  dbDisconnect(db.con)
-  return(result)
-}
+source('/home/jeffmxh/r projects/mysql_io.R')
 
 # 参数修改-----------------------------
 
