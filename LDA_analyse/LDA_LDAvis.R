@@ -220,14 +220,6 @@ ssave_excel(target_data, excel_path)
 
 print(Sys.time()-start_time)
 
-# rm(target_data, target_column, text_vec, doc.list, term.table,
-#    del, vocab, documents, D, W, doc.length, N, term.frequency,
-#    K, G, alpha, eta, fit, theta, phi, json)
-
-
-
-
-
 
 
 

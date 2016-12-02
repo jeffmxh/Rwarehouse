@@ -267,5 +267,4 @@ cat("图片保存完毕!\n")
 save(project_name, target_data, target_column, file = "/home/jeffmxh/LDA_temp_vis.RData")
 setwd(origin_wd)
 cat("总计用时：", Sys.time()-start_time, "\n")
-# 
 # rm(origin_wd, fold_num, kv_num, sp, ldaK, m_per, m_log, df, Gibbs, terms_10, tfs, adjacent_list, edgelist, topic, g, l, edge.color, nodesize, nodeLabel)

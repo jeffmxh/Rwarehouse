@@ -182,7 +182,7 @@ ssave_excel(target_data, excel_path)
 
 print(Sys.time()-start_time)
 # load("/home/jeffmxh/wechat_articles1.RData")
-# target_file_name <- ""
+
 # target_data <- data_raw
 # target_column <- "content"
 # file_name <- "肯德基圣诞烤鸡按关键词提取"
@@ -191,7 +191,6 @@ print(Sys.time()-start_time)
 # rm(target_data, target_column, text_vec, doc.list, term.table,
 #    del, vocab, documents, D, W, doc.length, N, term.frequency,
 #    K, G, alpha, eta, fit, theta, phi, json)
-
 
 
 
