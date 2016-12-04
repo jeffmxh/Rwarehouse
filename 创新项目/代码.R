@@ -1,10 +1,18 @@
 require(openxlsx, quietly = TRUE)
 require(dplyr, quietly = TRUE)
+require(stringr, quietly = TRUE)
 
 # 过滤NA--------------------------------------------
 
 filter_na <- function(str_vec){
   return(str_vec[!is.na(str_vec)])
+}
+
+filter_na_row <- function(matrix){
+  na_vec <- sapply(1:nrow(matrix), function(i){
+    return(TRUE %in% unique(is.na(matrix[i,])))
+  })
+  return(matrix[!na_vec,])
 }
 
 # 学号格式------------------------------------------
@@ -51,3 +59,35 @@ kuohao_book <- filter_na(unlist(str_match_all(data$课程, pattern = "《.+?》"
 data$课程 <- gsub("《.+?》", "", data$课程)
 data$课程 <- gsub("\\(.+?\\)", "", data$课程)
 data$课程 <- gsub("（.+?）", "", data$课程)
+
+# 相关性分析----------------------------------------
+
+cov_data_class <- filter_na_row(data[,c(5:12)])
+cov_data_teacher <- filter_na_row(data[,c(14:22)])
+cov_class <- cov(cov_data_class)
+cov_teacher <- cov(cov_data_teacher)
+p <- term_matrix_vis(cov_class, "课程")
+q <- term_matrix_vis(cov_teacher, "教师")
+
+ggsave(plot = p, filename = "课程相关性图.png", width = 30, height = 20, units = "cm")
+ggsave(plot = q, filename = "教师相关性图.png", width = 30, height = 20, units = "cm")
+
+result_emotion <- emotion_analyse(data, "第一部分D", emotion_dict)
+emotion_plot <- emotion_plot_detail(result_emotion)
+ggsave(plot = emotion_plot, filename = "情感统计.png", width = 30, height = 20, units = "cm")
+
+# 统计课程-------------------------------------------
+
+class <- paste(data$课程, collapse = ",")
+class <- unlist(strsplit(class, split = ","))
+class <- unlist(strsplit(class, split = "；"))
+class <- unlist(strsplit(class, split = "、"))
+class <- unlist(strsplit(class, split = "/"))
+class_stat <- plyr::count(class) %>% arrange(desc(freq)) %>% filter(x!="NA")
+
+teacher <- paste(data$老师, collapse = ",")
+teacher <- unlist(strsplit(teacher, split = ","))
+teacher <- unlist(strsplit(teacher, split = "；"))
+teacher <- unlist(strsplit(teacher, split = "、"))
+teacher <- unlist(strsplit(teacher, split = "/"))
+teacher_stat <- plyr::count(teacher) %>% arrange(desc(freq)) %>% filter(x!="NA")
