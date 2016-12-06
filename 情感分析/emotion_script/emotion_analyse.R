@@ -294,7 +294,6 @@ emotion_plot_detail <- function(result_list, plot_title = "情感详细统计"){
                 plot.title = element_text(colour = "black", face = "bold", size = 22, vjust = 1),
                 plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
                 legend.position = "none")
-  p_ly = ggplotly(p, tooltip = c("fill", "x", "y"))
   return(p)
 }
 
@@ -305,7 +304,6 @@ emotion_plot_class <- function(result_list, plot_title = "情感大类统计"){
                 plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1),
                 plot.margin = unit(c(0.2, 0.2, 0.2, 0.2), "inches"),
                 legend.position = "none")
-  q_ly = ggplotly(q)
   return(q)
 }
 
