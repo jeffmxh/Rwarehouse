@@ -13,7 +13,7 @@ get_cores <- function(){
   if(.Platform$OS.type=="windows"){
     n_cores <- 1
   }else{
-    n_cores <- 16
+    n_cores <- floor(detectCores(logical = TRUE)/2)
   }
   return(n_cores)
 }
@@ -37,9 +37,11 @@ emotion_load_dict <- function(filepath)
 # 对评论进行分词处理---------------------------
 
 emotion_text_segmenter <- function(data_emotion, column_deal){
+  require(jiebaR, quietly = TRUE)
+  require(parallel, quietly = TRUE)
   n_cores <- get_cores()
   data_emotion <- as.data.frame(data_emotion)
-  target_text <- data_emotion[, column_deal]
+  target_text <- as.character(data_emotion[, column_deal])
   cc <- worker()
   segment_list <- mclapply(1:length(target_text), function(i){
     seg_list <- tryCatch(
@@ -55,12 +57,11 @@ emotion_text_segmenter <- function(data_emotion, column_deal){
   return(segment_list)
 }
 
-
 # 词汇情感分析------------------------------------
 
 emotion_word_classify <- function(keyword, emotion_dictionary){
+  require(dplyr, quietly = TRUE)
   emotions_temp <- emotion_dictionary %>% dplyr::filter(word==keyword)
-  
   emotion_table <- data.frame(t(rep(0,22)))
   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH", 
                                "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC", "POLAR")
@@ -80,6 +81,8 @@ emotion_word_classify <- function(keyword, emotion_dictionary){
 # 分析句子情感, 用于分析结果------------------------------------
 
 emotion_sentence_analyse <- function(sentence, emotion_dictionary){
+  require(jiebaR, quietly = TRUE)
+  require(parallel, quietly = TRUE)
   cc <- worker()
   seg_list <- cc[sentence]
   if(length(seg_list)>1){
@@ -111,10 +114,10 @@ emotion_sentence_analyse <- function(sentence, emotion_dictionary){
 # 统计句子中的情感--------------------------------
 
 emotion_sentence_stat <- function(seg_list, emotion_dict){
+  require(dplyr, quietly = TRUE)
   emotion_table <- data.frame(t(rep(0,22)))
   colnames(emotion_table) <- c("PA", "PE", "PD", "PH", "PG", "PB", "PK", "NZ", "NB", "NJ", "NH",
                                "PF", "NI", "NC", "NG", "NE", "ND", "NN", "NK", "NL", "PC", "POLAR")
-  # sub_emotion_dict <- emotion_dict[emotion_dict$word %in% seg_list,]
   sub_emotion_dict <- emotion_dict %>% dplyr::filter(word %in% seg_list)
   if(nrow(sub_emotion_dict)==0){
     return(emotion_table)
@@ -189,11 +192,47 @@ emotion_sign <- function(result_line){
 # 数据集标记情感---------------------------------------
 
 emotion_analysed_sign <- function(data_analysed){
+  require(parallel, quietly = TRUE)
   n_cores <- get_cores()
   result_list <- mclapply(1:nrow(data_analysed), function(i){emotion_sign(data_analysed[i,])}, mc.cores = n_cores)
   result_table <- do.call(rbind, result_list)
   data_analysed <- data.frame(data_analysed, "emotion" = result_table)
   return(data_analysed)
+}
+
+# 获取词语极性标注-------------------------------------
+
+word_polar_classify <- function(keyword, emotion_dict){
+  sub_dict <- emotion_dict %>% filter(word==keyword)
+  if(nrow(sub_dict)>0){
+    return(sub_dict$polar_1[1])
+  }else{
+    return(0)
+  }
+}
+
+# 对语料进行极性标注(识别否定词)-----------------------
+
+emotion_polar_classify <- function(seg_list, emotion_dict){
+  require(dplyr, quietly = TRUE)
+  sub_dict <- emotion_dict %>% filter(word %in% seg_list) %>% select(word, polar_1)
+  if(nrow(sub_dict)==0){
+    return("None")
+  }else{
+    key_word <- seg_list[seg_list %in% sub_dict$word]
+    seg_list <- seg_list[seg_list %in% c("不", "不是", "没有", key_word)]
+    names(seg_list) <- 1:length(seg_list)
+    index <- as.numeric(names(seg_list)[seg_list %in% key_word])
+    if(length(index)==1){
+      return(word_polar_classify(key_word, sub_dict)*(-1)^(index+1))
+    }else{
+      reverse <- (-1)^(index - c(0, index[1:(length(index)-1)]) + 1)
+      emotion_vec <- sapply(1:length(key_word), function(i){
+        word_polar_classify(key_word[i],emotion_dict = sub_dict)
+      })
+      return(sum(reverse * emotion_vec))
+    }
+  }
 }
 
 # 输入数据框处理函数----------------------------
@@ -208,6 +247,17 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
   segment_list <- emotion_text_segmenter(data_emotion, column_to_deal)
   if(show_progress){
     cat("分词完成，用时：", Sys.time()-time_temp, "\n", sep = "")
+    cat("------------------------------------------\n")
+    time_temp <- Sys.time()
+    cat("开始极性标注：\n")
+  }
+  emotion <- mclapply(segment_list, function(seg){
+    emotion_polar_classify(seg, emotion_dict)
+    }, mc.cores = 16)
+  emotion <- unlist(emotion)
+  data_emotion$sentiment <- emotion
+  if(show_progress){
+    cat("极性标注完成，用时：", Sys.time()-time_temp, "\n", sep = "")
     cat("------------------------------------------\n")
     time_temp <- Sys.time()
     cat("开始情感分析：\n")
@@ -252,9 +302,10 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
     time_temp <- Sys.time()
     cat("开始生成结果：\n")
   }
+  stat_list <- stat_list[,colnames(stat_list)!="语义"]
   result = list()
   result[["raw_data"]] <- cbind(data_emotion, stat_list)
-  stat_sum <- apply(stat_list[,1:29], 2, sum)
+  stat_sum <- apply(stat_list[,1:28], 2, sum)
   stat_names <- names(stat_sum)
   stat_result <- as.data.frame(stat_sum)
   rownames(stat_result) <- 1:nrow(stat_result)
@@ -270,10 +321,10 @@ emotion_analyse <- function(data_emotion, column_to_deal, emotion_dict, show_pro
 # 分析过程------------------------------------------
 
 # data_raw = as.data.frame(articles1)
-time_temp <- Sys.time()
-result_wahaha <- emotion_analyse(content_wahaha, "after_text", emotion_dict)
-cat("总计用时:", Sys.time() - time_temp, sep = "")
-rm(time_temp)
+# time_temp <- Sys.time()
+result_emotion <- emotion_analyse(data, "content", emotion_dict)
+# cat("总计用时:", Sys.time() - time_temp, sep = "")
+# rm(time_temp)
 # save(result_emotion_analyse_all_10_21, file = "/home/jeffmxh/result_emotion_all_10_21.RData")
 # result_all$raw_data <- rbind(result_all$raw_data, result_emotion$raw_data)
 # result_all$stat_result$stat_sum <- result_all$stat_result$stat_sum + result_emotion$stat_result$stat_sum
@@ -282,6 +333,8 @@ rm(time_temp)
 # 画图显示结果--------------------------------------
 
 emotion_plot_detail <- function(result_list, plot_title = "情感详细统计"){
+  require(ggplot2, quietly = TRUE)
+  require(plotly, quietly = TRUE)
   plot_data_detail <- data.frame("class" = c(rep("乐", 2), rep("好", 5), rep("怒", 1), rep("哀", 4),
                                              rep("惧", 3), rep("恶", 5), rep("惊", 1)),
                                  result_list$stat_result[1:21,])
@@ -297,7 +350,9 @@ emotion_plot_detail <- function(result_list, plot_title = "情感详细统计"){
 }
 
 emotion_plot_class <- function(result_list, plot_title = "情感大类统计"){
-  q = ggplot(result_list$stat_result[23:29,], aes(x = type,y = stat_sum, fill = type))
+  require(ggplot2, quietly = TRUE)
+  require(plotly, quietly = TRUE)
+  q = ggplot(result_list$stat_result[22:28,], aes(x = type,y = stat_sum, fill = type))
   q = q + geom_bar(stat="identity") + xlab("情感") + ylab("加权求和") + ggtitle(plot_title)
   q = q + theme(plot.background = element_rect(colour = "black", size = 1, linetype = 1, fill = "lightblue"),
             plot.title = element_text(colour = "black", face = "bold", size = 25, vjust = 1),
