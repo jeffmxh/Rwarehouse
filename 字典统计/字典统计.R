@@ -1,7 +1,8 @@
 find_dict_word <- function(data, colname, dict, dupli_bool = TRUE, filter_bool = TRUE){
   if(!require(dplyr, quietly = TRUE)){
     stop("Please install dplyr first!")
-  }else if(!require(stringr, quietly = TRUE){
+  }
+  if(!require(stringr, quietly = TRUE)){
     stop("Please install stringr first!")
   }
   colnames(data)[colnames(data)==colname] = "target_word"
