@@ -17,8 +17,12 @@ dict_vec = c("元旦","小寒","大寒","腊八节","小年","立春","除夕","
 
 ## 直接统计词频
 
-``find_dict_word(data1, "content", dict_vec, FALSE)``
+```r
+find_dict_word(data1, "content", dict_vec, FALSE)
+```
 
 ## 统计记录数量
 
-``find_dict_word(data1, "content", dict_vec, TRUE)``
+```r
+find_dict_word(data1, "content", dict_vec, TRUE)
+```
